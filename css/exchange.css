@@ -1,0 +1,41 @@
+#sidebar .menu-segment ul,
+#sidebar .menu-segment li {
+  margin: 0;
+  padding: 0;
+  text-align: left;
+}
+
+.exchange-container {
+  display: table;
+  float: left;
+  margin-bottom: 100px;
+  margin-left: 5px;
+  overflow: auto;
+  padding-top: 10px;
+  width: 100%;
+}
+.exchange-container table {
+  width: 100%;
+}
+
+div.inbox-header {
+  border-bottom: 1px solid #ccc;
+  float: none;
+  height: 25px;
+  margin-top: 10px;
+  text-align: center;
+  vertical-align: middle;  
+}
+ul.nav-pills {
+  margin: 0;
+  padding: 5px 10px;
+}
+ul.inbox-nav {
+    display: inline-block;
+    margin: 0;
+    padding: 0;
+    width: 100%;
+}
+ul.inbox-divider {
+    border-bottom: 1px solid #d5d8df;
+}

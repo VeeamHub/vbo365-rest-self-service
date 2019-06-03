@@ -1,0 +1,19 @@
+#sidebar .menu-segment ul,
+#sidebar .menu-segment li {
+  margin: 0;
+  padding: 0;
+  text-align: left;
+}
+
+.sharepoint-container {
+  display: table;
+  float: left;
+  margin-bottom: 100px;
+  margin-left: 5px;
+  overflow: auto;
+  padding-top: 10px;  
+  width: 100%;
+}
+.sharepoint-container table {
+  width: 100%;
+}
