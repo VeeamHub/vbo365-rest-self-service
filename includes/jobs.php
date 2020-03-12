@@ -60,9 +60,9 @@ if (isset($_SESSION['token'])) {
 			echo '<td>';
 			
 			if ($jobs[$i]['isEnabled'] != 'true') {
-				echo '<span id="span-job-' . $jobs[$i]['id'] . '"><button class="btn btn-default" id="btn-change-job-state" data-call="enable" data-name="' . $jobs[$i]['name'] . '" data-jid="' . $jobs[$i]['id'] . '" title="Enable job"><i class="fa fa-power-off text-success fa-lg" aria-hidden="true"></i></button></a></span>&nbsp;';
+				echo '<span id="span-job-' . $jobs[$i]['id'] . '"><button class="btn btn-default" id="btn-change-job-state" data-call="enable" data-name="' . $jobs[$i]['name'] . '" data-jid="' . $jobs[$i]['id'] . '" title="Change state"><i class="fa fa-power-off text-success fa-lg button-state"></i></button></a></span>&nbsp;';
 			} else {
-				echo '<span id="span-job-' . $jobs[$i]['id'] . '"><button class="btn btn-default" id="btn-change-job-state" data-call="disable" data-name="' . $jobs[$i]['name'] . '" data-jid="' . $jobs[$i]['id'] . '" title="Disable job"><i class="fa fa-power-off text-danger fa-lg"></i></button></a></span>&nbsp;';
+				echo '<span id="span-job-' . $jobs[$i]['id'] . '"><button class="btn btn-default" id="btn-change-job-state" data-call="disable" data-name="' . $jobs[$i]['name'] . '" data-jid="' . $jobs[$i]['id'] . '" title="Change state"><i class="fa fa-power-off text-danger fa-lg button-state"></i></button></a></span>&nbsp;';
 			}
 			
 			echo '<button class="btn btn-success" id="btn-job-start" data-call="startjob" data-name="' . $jobs[$i]['name'] . '" data-cid="' . $jobs[$i]['id'] . '" title="Start job"><i class="fa fa-play" aria-hidden="true"></i></button></a>&nbsp;';
@@ -238,23 +238,17 @@ $('#btn-change-job-state').click(function(e) {
     var call = $(this).data('call'); /* Job call: enable or disable */
     var json = '{ "'+call+'": null }';
     
-    $.get('veeam.php', {'action' : 'changejobstate', 'id' : jid, 'json' : json}).done(function(data) {              
-        if (call == 'enable') {
-            $('#span-job-' + jid).html('<button class="btn btn-default" id="btn-change-job-state" data-call="disable" data-name="' + name + '" data-jid="' + jid + '" title="Disable job"><i class="fa fa-power-off text-danger fa-lg" aria-hidden="true"></i></button></a>&nbsp;');
-			Swal.fire({
-				type: 'info',
-				title: 'Job status',
-				text: 'Job ' + name + ' has been ' + call + 'd.'
-			})
-        } else {
-            $('#span-job-' + jid).html('<button class="btn btn-default" id="btn-change-job-state" data-call="enable" data-name="' + name + '" data-jid="' + jid + '" title="Enable job"><i class="fa fa-power-off text-success fa-lg" aria-hidden="true"></i></button></a>&nbsp;');
-            Swal.fire({
-				type: 'info',
-				title: 'Job status',
-				text: 'Job ' + name + ' has been ' + call + 'd.'
-			})
-        }
-    });
+    $.get('veeam.php', {'action' : 'changejobstate', 'id' : jid, 'json' : json}).done(function(data) {
+		if (call == 'enable') {
+			$('#btn-change-job-state').data('call', 'disable');
+			$('.button-state').removeClass('text-success');
+			$('.button-state').addClass('text-danger');
+		} else {			
+			$('#btn-change-job-state').data('call', 'enable');
+			$('.button-state').addClass('text-success');
+			$('.button-state').removeClass('text-danger');
+		}			
+	});	
 });
 
 $('#btn-job-start').click(function(e) {
