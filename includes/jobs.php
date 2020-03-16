@@ -60,12 +60,12 @@ if (isset($_SESSION['token'])) {
 			echo '<td>';
 			
 			if ($jobs[$i]['isEnabled'] != 'true') {
-				echo '<span id="span-job-' . $jobs[$i]['id'] . '"><button class="btn btn-default" id="btn-change-job-state" data-call="enable" data-name="' . $jobs[$i]['name'] . '" data-jid="' . $jobs[$i]['id'] . '" title="Change state"><i class="fa fa-power-off text-success fa-lg button-state"></i></button></a></span>&nbsp;';
+				echo '<button class="btn btn-default btn-change-job-state" id="btn-change-job-state-' . $jobs[$i]['id'] . '" data-call="enable" data-name="' . $jobs[$i]['name'] . '" data-jid="' . $jobs[$i]['id'] . '" title="Change state"><i class="fa fa-power-off text-success fa-lg btn-state-' . $jobs[$i]['id'] . '"></i></button></a>';
 			} else {
-				echo '<span id="span-job-' . $jobs[$i]['id'] . '"><button class="btn btn-default" id="btn-change-job-state" data-call="disable" data-name="' . $jobs[$i]['name'] . '" data-jid="' . $jobs[$i]['id'] . '" title="Change state"><i class="fa fa-power-off text-danger fa-lg button-state"></i></button></a></span>&nbsp;';
+				echo '<button class="btn btn-default btn-change-job-state" id="btn-change-job-state-' . $jobs[$i]['id'] . '" data-call="disable" data-name="' . $jobs[$i]['name'] . '" data-jid="' . $jobs[$i]['id'] . '" title="Change state"><i class="fa fa-power-off text-danger fa-lg btn-state-' . $jobs[$i]['id'] . '"></i></button></a>';
 			}
 			
-			echo '<button class="btn btn-success" id="btn-job-start" data-call="startjob" data-name="' . $jobs[$i]['name'] . '" data-cid="' . $jobs[$i]['id'] . '" title="Start job"><i class="fa fa-play" aria-hidden="true"></i></button></a>&nbsp;';
+			echo '&nbsp;<button class="btn btn-success btn-job-start" data-name="' . $jobs[$i]['name'] . '" data-jid="' . $jobs[$i]['id'] . '" title="Start job"><i class="fa fa-play"></i></button></a>';
 			echo '</td>';
 			echo '</tr>';
 			
@@ -232,7 +232,7 @@ $('.item').click(function(e) {
 });
 
 /* Job Buttons */
-$('#btn-change-job-state').click(function(e) {
+$('.btn-change-job-state').click(function(e) {
     var jid = $(this).data('jid'); /* Job ID */
     var name = $(this).data('name'); /* Job name */
     var call = $(this).data('call'); /* Job call: enable or disable */
@@ -240,23 +240,22 @@ $('#btn-change-job-state').click(function(e) {
     
     $.get('veeam.php', {'action' : 'changejobstate', 'id' : jid, 'json' : json}).done(function(data) {
 		if (call == 'enable') {
-			$('#btn-change-job-state').data('call', 'disable');
-			$('.button-state').removeClass('text-success');
-			$('.button-state').addClass('text-danger');
+			$('#btn-change-job-state-'+jid).data('call', 'disable');
+			$('.btn-state-'+jid).removeClass('text-success');
+			$('.btn-state-'+jid).addClass('text-danger');
 		} else {			
-			$('#btn-change-job-state').data('call', 'enable');
-			$('.button-state').addClass('text-success');
-			$('.button-state').removeClass('text-danger');
+			$('#btn-change-job-state-'+jid).data('call', 'enable');
+			$('.btn-state-'+jid).addClass('text-success');
+			$('.btn-state-'+jid).removeClass('text-danger');
 		}			
-	});	
+	});
 });
 
-$('#btn-job-start').click(function(e) {
-    var action = $(this).data('call'); /* Action to perform: start or stop */
+$('.btn-job-start').click(function(e) {
     var id = $(this).data('cid'); /* Job ID */
     var name = $(this).data('name'); /* Job name */
     
-    $.get('veeam.php', {'action' : action, 'id' : id}).done(function(data) {
+    $.get('veeam.php', {'action' : 'startjob', 'id' : id}).done(function(data) {
 		Swal.fire({
 			type: 'info',
 			title: 'Job status',
