@@ -4,9 +4,8 @@ require_once('../veeam.class.php');
 
 session_start();
 
-$veeam = new VBO($host, $port, $version);
-
 if (isset($_SESSION['token'])) {
+	$veeam = new VBO($host, $port, $version);
 	$veeam->setToken($_SESSION['token']);
     $user = $_SESSION['user'];
 	$jobs = $veeam->getJobs();
@@ -40,16 +39,8 @@ if (isset($_SESSION['token'])) {
 			$id = explode('/', $jobs[$i]['_links']['organization']['href']); // Get the organization ID
 			
 			for ($j = 0; $j < count($org); $j++) {
-				if ($version != 'v2') {
-					if ($org[$j]['id'] === end($id)) {
-						echo '<td>' . $org[$j]['name'] . '</td>';
-					}
-				} else {
-					if ($org[$j]['id'] === end($id)) {
-						echo '<td>' . $org[$j]['name'] . '</td>';
-					} else { /* This only happens with the v2 API requesting organizations which were added by VBO v3 */
-						echo '<td>N/A</td>';
-					}
+				if ($org[$j]['id'] === end($id)) {
+					echo '<td>' . $org[$j]['name'] . '</td>';
 				}
 			}
 
@@ -200,7 +191,7 @@ $('.item').click(function(e) {
     var icon, text;
     var id = $(this).data('sessionid');
     
-    $.get('veeam.php', {'action' : 'getbackupsessionlog', 'id' : id}).done(function(data) {
+    $.post('veeam.php', {'action' : 'getbackupsessionlog', 'id' : id}).done(function(data) {
         response = JSON.parse(data);
 
         $('#table-session-content tbody').empty();
@@ -226,7 +217,7 @@ $('.item').click(function(e) {
                     <td>' + moment.utc(duration.asMilliseconds()).format('HH:mm:ss') + '</td> \
                     </tr>');
         }
-                
+        
         $('#sessionModalCenter').modal('show');
     });
 });
@@ -237,8 +228,8 @@ $('.btn-change-job-state').click(function(e) {
     var name = $(this).data('name'); /* Job name */
     var call = $(this).data('call'); /* Job call: enable or disable */
     var json = '{ "'+call+'": null }';
-    
-    $.get('veeam.php', {'action' : 'changejobstate', 'id' : jid, 'json' : json}).done(function(data) {
+
+    $.post('veeam.php', {'action' : 'changejobstate', 'id' : jid, 'json' : json}).done(function(data) {
 		if (call == 'enable') {
 			$('#btn-change-job-state-'+jid).data('call', 'disable');
 			$('.btn-state-'+jid).removeClass('text-success');
@@ -252,10 +243,10 @@ $('.btn-change-job-state').click(function(e) {
 });
 
 $('.btn-job-start').click(function(e) {
-    var id = $(this).data('cid'); /* Job ID */
+    var id = $(this).data('jid'); /* Job ID */
     var name = $(this).data('name'); /* Job name */
     
-    $.get('veeam.php', {'action' : 'startjob', 'id' : id}).done(function(data) {
+    $.post('veeam.php', {'action' : 'startjob', 'id' : id}).done(function(data) {
 		Swal.fire({
 			type: 'info',
 			title: 'Job status',
