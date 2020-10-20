@@ -44,19 +44,18 @@ class VBO {
   public function login($user, $pass) {
     try {
         $response = $this->client->request('POST', 'token', [
-                'form_params' => [
-                    'grant_type' => 'password',
-                    'username' => $user,
-                    'password' => $pass
-                ],
-                'headers' => [
-                       'Accept' => 'application/json',
-                       'Content-Type' => 'application/x-www-form-urlencoded',
-                    ],
-                'http_errors' => false,
-                'verify' => false
-            ]
-        );
+						'form_params' => [
+							'grant_type' => 'password',
+							'username' => $user,
+							'password' => $pass
+						],
+						'headers' => [
+						   'Accept' => 'application/json',
+						   'Content-Type' => 'application/x-www-form-urlencoded',
+						],
+						'http_errors' => false,
+						'verify' => false
+					]);
 
 		$result = json_decode($response->getBody(), true);
 
@@ -79,12 +78,64 @@ class VBO {
         }
     }
   }
+  
+  public function MFALogin($tenantid, $assertion) {
+	try {
+		$response = $this->client->request('POST', 'token', [
+						'form_params' => [
+							'grant_type' => 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+							'client_id' => $tenantid,
+							'assertion' => $assertion
+						],
+						'headers' => [
+						   'Accept' => 'application/json',
+						   'Content-Type' => 'application/x-www-form-urlencoded',
+						],
+						'http_errors' => false,
+						'verify' => false
+					]);
+					
+		$result = json_decode($response->getBody(), true);
+		
+		if ($response->getStatusCode() === 200) {
+            $this->refreshtoken = $result['refresh_token'];
+            $this->token = $result['access_token'];
+        } elseif ($response->getStatusCode() === 400) {
+            return 0;
+        } else {
+            return '<strong>' . $result['error'] . ':</strong> ' . $result['error_description'];
+        }
+	} catch (RequestException $e) {
+        if ($e->hasResponse()) {
+            $exception = (string) $e->getResponse()->getBody();
+            $exception = json_decode($exception, true);
+
+            echo 'Error: ' . $exception['error'];
+        } else {
+            echo $e->getMessage();
+        }
+    }	
+  }
 
   public function logout() {
     unset($_SESSION);
 	session_regenerate_id();
     session_destroy();
     header("Refresh:0");
+  }
+
+  function alphanum($string, $x = '') {
+	$h = strlen($string);
+	
+	for ($a = 0; $a < $h; $a++) {
+		$i = ord($string[$a]);
+		
+		if(($i==45) || ($i > 47 && $i < 58) || ($i > 64 && $i < 91) || ($i > 96 && $i < 123)) { 
+			$x .= $string[$a]; 
+		}
+	}
+	
+	return $x;
   }
 
   /**
@@ -157,14 +208,13 @@ class VBO {
   public function getBackupRepositories() {
     try {
         $response = $this->client->request('GET', 'BackupRepositories', [
-                        'headers' => [
-                            'Authorization' => 'Bearer ' . $this->token,
-                            'Accept'        => 'application/json',
-                        ],
-                        'http_errors' => false,
-                        'verify' => false
-                    ]
-                );
+						'headers' => [
+							'Authorization' => 'Bearer ' . $this->token,
+							'Accept'        => 'application/json',
+						],
+						'http_errors' => false,
+						'verify' => false
+					]);
 
         $result = json_decode($response->getBody(), true);
 
@@ -197,8 +247,7 @@ class VBO {
                         ],
                         'http_errors' => false,
                         'verify' => false
-                    ]
-                );
+                    ]);
 
         $result = json_decode($response->getBody(), true);
 
@@ -232,50 +281,14 @@ class VBO {
 
     try {
         $response = $this->client->request('GET', $call, [
-                    'headers' => [
-                        'Authorization' => 'Bearer ' . $this->token,
-                        'Accept'        => 'application/json',
-                    ],
-                    'http_errors' => false,
-                    'verify' => false
-                ]
-            );
+						'headers' => [
+							'Authorization' => 'Bearer ' . $this->token,
+							'Accept'        => 'application/json',
+						],
+						'http_errors' => false,
+						'verify' => false
+					]);
                 
-        $result = json_decode($response->getBody(), true);
-
-        if ($response->getStatusCode() === 200) {
-            return($result);
-        } elseif ($response->getStatusCode() === 401) {
-            $this->logout();
-        }
-    } catch (RequestException $e) {
-        if ($e->hasResponse()) {
-            $exception = (string) $e->getResponse()->getBody();
-            $exception = json_decode($exception, true);
-
-            echo 'Error: ' . $exception['message'];
-        } else {
-            echo $e->getMessage();
-        }
-    }
-  }
-
-  /**
-   * @param $id Job ID
-   * @return $result 
-   */
-  public function getJobSelectedItems($id) {
-    try {
-        $response = $this->client->request('GET', 'Jobs/'.$id.'/SelectedItems', [
-                    'headers' => [
-                        'Authorization' => 'Bearer ' . $this->token,
-                        'Accept'        => 'application/json',
-                    ],
-                    'http_errors' => false,
-                    'verify' => false
-                ]
-            );
-
         $result = json_decode($response->getBody(), true);
 
         if ($response->getStatusCode() === 200) {
@@ -302,14 +315,13 @@ class VBO {
   public function getJobSession($id) {
     try {
         $response = $this->client->request('GET', 'Jobs/'.$id.'/JobSessions', [
-                    'headers' => [
-                        'Authorization' => 'Bearer ' . $this->token,
-                        'Accept'        => 'application/json',
-                    ],
-                    'http_errors' => false,
-                    'verify' => false
-                ]
-            );
+						'headers' => [
+							'Authorization' => 'Bearer ' . $this->token,
+							'Accept'        => 'application/json',
+						],
+						'http_errors' => false,
+						'verify' => false
+					]);
 
         $result = json_decode($response->getBody(), true);
 
@@ -337,14 +349,13 @@ class VBO {
   public function getLicenseInfo($id) {
     try {
         $response = $this->client->request('GET', 'Organizations/'.$id.'/LicensingInformation', [
-                    'headers' => [
-                        'Authorization' => 'Bearer ' . $this->token,
-                        'Accept'        => 'application/json',
-                    ],
-                    'http_errors' => false,
-                    'verify' => false
-                ]
-            );
+						'headers' => [
+							'Authorization' => 'Bearer ' . $this->token,
+							'Accept'        => 'application/json',
+						],
+						'http_errors' => false,
+						'verify' => false
+					]);
 
         $result = json_decode($response->getBody(), true);
         
@@ -372,14 +383,13 @@ class VBO {
   public function getLicensedUsers($id) {
     try {
         $response = $this->client->request('GET', 'LicensedUsers?organizationId='.$id, [
-                    'headers' => [
-                        'Authorization' => 'Bearer ' . $this->token,
-                        'Accept'        => 'application/json',
-                    ],
-                    'http_errors' => false,
-                    'verify' => false
-                ]
-            );
+						'headers' => [
+							'Authorization' => 'Bearer ' . $this->token,
+							'Accept'        => 'application/json',
+						],
+						'http_errors' => false,
+						'verify' => false
+					]);
 
         $result = json_decode($response->getBody(), true);
         
@@ -412,8 +422,7 @@ class VBO {
                         ],
                         'http_errors' => false,
                         'verify' => false
-                    ]
-                );
+                    ]);
 
         $result = json_decode($response->getBody(), true);
 
@@ -447,8 +456,7 @@ class VBO {
                         ],
                         'http_errors' => false,
                         'verify' => false
-                    ]
-                );
+                    ]);
 
         $result = json_decode($response->getBody(), true);
 
@@ -482,8 +490,7 @@ class VBO {
                         ],
                         'http_errors' => false,
                         'verify' => false
-                    ]
-                );
+                    ]);
                 
         $result = json_decode($response->getBody(), true);
 
@@ -515,13 +522,12 @@ class VBO {
   public function getOrganizationJobs($id) {
     try {
         $response = $this->client->request('GET', 'Organizations/'.$id.'/Jobs', [
-                    'headers' => [
-                        'Authorization' => 'Bearer ' . $this->token,
-                        'Accept'        => 'application/json',
-                    ],
-                    'verify' => false
-                ]
-            );
+						'headers' => [
+							'Authorization' => 'Bearer ' . $this->token,
+							'Accept'        => 'application/json',
+						],
+						'verify' => false
+					]);
 
         $result = json_decode($response->getBody(), true);
 
@@ -555,8 +561,7 @@ class VBO {
                         ],
                         'http_errors' => false,
                         'verify' => false
-                    ]
-                );
+                    ]);
                 
         $result = json_decode($response->getBody(), true);
 
@@ -589,8 +594,7 @@ class VBO {
                         ],
                         'http_errors' => false,
                         'verify' => false
-                    ]
-                );
+                    ]);
 
         $result = json_decode($response->getBody(), true);
 
@@ -624,8 +628,7 @@ class VBO {
                         ],
                         'http_errors' => false,
                         'verify' => false
-                    ]
-                );
+                    ]);
 
         $result = json_decode($response->getBody(), true);
 
@@ -652,14 +655,13 @@ class VBO {
   public function getProxies() {
     try {
         $response = $this->client->request('GET', 'Proxies', [
-                    'headers' => [
-                        'Authorization' => 'Bearer ' . $this->token,
-                        'Accept'        => 'application/json',
-                    ],
-                    'http_errors' => false,
-                    'verify' => false
-                ]
-            );
+						'headers' => [
+							'Authorization' => 'Bearer ' . $this->token,
+							'Accept'        => 'application/json',
+						],
+						'http_errors' => false,
+						'verify' => false
+					]);
 
         $result = json_decode($response->getBody(), true);
 
@@ -687,14 +689,13 @@ class VBO {
   public function getProxy($id) {
     try {
         $response = $this->client->request('GET', 'Proxies/'.$id, [
-                    'headers' => [
-                        'Authorization' => 'Bearer ' . $this->token,
-                        'Accept'        => 'application/json',
-                    ],
-                    'http_errors' => false,
-                    'verify' => false
-                ]
-            );
+						'headers' => [
+							'Authorization' => 'Bearer ' . $this->token,
+							'Accept'        => 'application/json',
+						],
+						'http_errors' => false,
+						'verify' => false
+					]);
 
         $result = json_decode($response->getBody(), true);
 
@@ -729,8 +730,7 @@ class VBO {
                         ],
                         'http_errors' => false,
                         'verify' => false
-                    ]
-                );
+                    ]);
                 
         $result = json_decode($response->getBody(), true);
 
@@ -764,8 +764,7 @@ class VBO {
                         ],
                         'http_errors' => false,
                         'verify' => false
-                    ]
-                );
+                    ]);
                 
         $result = json_decode($response->getBody(), true);
 
@@ -799,8 +798,7 @@ class VBO {
                         ],
                         'http_errors' => false,
                         'verify' => false
-                    ]
-                );
+                    ]);
                 
         $result = json_decode($response->getBody(), true);
 
@@ -836,8 +834,7 @@ class VBO {
                         ],
                         'verify' => false,
                         'body' => $json,
-                    ]
-                );
+                    ]);
 
         $result = json_decode($response->getBody(), true);
 
@@ -865,25 +862,24 @@ class VBO {
   public function startJob($id) {
     try {
         $response = $this->client->request('POST', 'Jobs/'.$id.'/Action', [
-                    'headers' => [
-                        'Authorization' => 'Bearer ' . $this->token,
-                        'Accept'        => 'application/json',
-                        'Content-Type'  => 'application/json'
-                    ],
-                    'http_errors' => false,
-                    'verify' => false,
-                    'body' => '{ "start": null }'
-                ]
-            );
-
+						'headers' => [
+							'Authorization' => 'Bearer ' . $this->token,
+							'Accept'        => 'application/json',
+							'Content-Type'  => 'application/json'
+						],
+						'http_errors' => false,
+						'verify' => false,
+						'body' => '{ "start": null }'
+					]);
+					
+		$result = json_decode($response->getBody(), true);
+		
         if ($response->getStatusCode() === 200) {
-            echo 'Job has been started.';
+            return($result);
         } elseif ($response->getStatusCode() === 401) {
             $this->logout();
         } else {
-            $result = json_decode($response->getBody(), true);
-
-            echo $result['message'];
+            return($result);
         }
     } catch (RequestException $e) {
         if ($e->hasResponse()) {
@@ -898,29 +894,28 @@ class VBO {
   }
 
   /**
-   * @param $json JSON code for Exchange, OneDrive or SharePoint
+   * @param $json JSON code
    * @id Organization ID
    * @return $result
    */
   public function startRestoreSession($json, $id = null) {
-    if (isset($id)) { /* Used for admin restores */
+    if (isset($id)) {
         $call = 'Organizations/'.$id.'/Action';
-    } else { /* Used for tenant restores */
+    } else {
         $call = 'Organization/Action';
     }
 
     try {
         $response = $this->client->request('POST', $call, [
-                    'headers' => [
-                        'Authorization' => 'Bearer ' . $this->token,
-                        'Accept'        => 'application/json',
-                        'Content-Type'  => 'application/json'
-                    ],
-                    'http_errors' => true,
-                    'verify' => false,
-                    'body' => $json
-                ]
-            );
+						'headers' => [
+							'Authorization' => 'Bearer ' . $this->token,
+							'Accept'        => 'application/json',
+							'Content-Type'  => 'application/json'
+						],
+						'http_errors' => true,
+						'verify' => false,
+						'body' => $json
+					]);
 
         $result = json_decode($response->getBody(), true);
         
@@ -928,7 +923,7 @@ class VBO {
             return($result);
         } elseif ($response->getStatusCode() === 401) {
             $this->logout();
-        } elseif ($response->getStatusCode() === 500) {
+        } else {
             return($result);
         }
     } catch (RequestException $e) {
@@ -945,7 +940,6 @@ class VBO {
 
   /**
    * @param $id Organization ID
-   * @param $json JSON
    * @return string
    */
   public function stopRestoreSession($rid) {
@@ -959,18 +953,19 @@ class VBO {
                         'http_errors' => false,
                         'verify' => false,
                         'body' => '{ "stop": null }'
-                    ]
-                );
+                    ]);
 
         $result = json_decode($response->getBody(), true);
 
-        if ($response->getStatusCode() === 201) {
+        if ($response->getStatusCode() === 200) {
             return($result);
-        } else {
-            $result = json_decode($response->getBody(), true);
-
-            echo $result['message'];
-        }
+        } elseif ($response->getStatusCode() === 401) {
+			$this->logout();
+		} else {
+			$error = array('error' => $result['message']);
+		
+            return($error);
+		}
     } catch (RequestException $e) {
         if ($e->hasResponse()) {
             $exception = (string) $e->getResponse()->getBody();
@@ -982,6 +977,42 @@ class VBO {
         }
     }
   }
+
+  /**
+   * @param $rid Restore Session ID
+   * @return string
+   */
+  public function getRestoreDeviceCode($rid, $json) {
+    try {
+        $response = $this->client->request('POST', 'RestoreSessions/'.$rid.'/organization/restoreDeviceCode', [
+                        'headers' => [
+                            'Authorization' => 'Bearer ' . $this->token,
+                            'Accept'        => 'application/json',
+                            'Content-Type'  => 'application/json'
+                        ],
+                        'http_errors' => false,
+                        'verify' => false,
+						'body' => $json
+                    ]);
+
+        $result = json_decode($response->getBody(), true);
+
+        if ($response->getStatusCode() === 200) {
+            return($result);
+        } elseif ($response->getStatusCode() === 401) {
+			$this->logout();
+		}
+    } catch (RequestException $e) {
+        if ($e->hasResponse()) {
+            $exception = (string) $e->getResponse()->getBody();
+            $exception = json_decode($exception, true);
+
+            echo 'Error: ' . $exception['message'];
+        } else {
+            echo $e->getMessage();
+        }
+    }
+  }  
   
   /**
    * Start Session Log functions
@@ -1000,8 +1031,7 @@ class VBO {
                         ],
                         'http_errors' => false,
                         'verify' => false
-                    ]
-                );
+                    ]);
 
         $result = json_decode($response->getBody(), true);
 
@@ -1026,23 +1056,16 @@ class VBO {
    * @param $offset Session offset
    * @return $result 
    */
-  public function getSessions($offset = null) {
-	$call = 'RestoreSessions';
-
-	if (isset($offset)) {
-		$call .= '?offset=' . $offset;
-	}
-		
-    try {
-        $response = $this->client->request('GET', $call, [
+  public function getSessions($offset = 0) {
+	try {
+        $response = $this->client->request('GET', 'RestoreSessions?offset='.$offset, [
                         'headers' => [
                             'Authorization' => 'Bearer ' . $this->token,
                             'Accept'        => 'application/json',
                         ],
                         'http_errors' => false,
                         'verify' => false
-                    ]
-                );
+                    ]);
 
         $result = json_decode($response->getBody(), true);
 
@@ -1070,13 +1093,12 @@ class VBO {
 	try {
 		$response = $this->client->request('GET', 'JobSessions', [
 						'headers' => [
-							'Authorization' => 'Bearer ' . $this->token,        
+							'Authorization' => 'Bearer ' . $this->token,
 							'Accept'        => 'application/json',
 						],
 						'http_errors' => false,
 						'verify' => false
-					]
-				);
+					]);
 				
 		$result = json_decode($response->getBody(), true);
 		
@@ -1105,13 +1127,12 @@ class VBO {
 	try {
 		$response = $this->client->request('GET', 'JobSessions/'.$id.'/LogItems?limit=250', [
 						'headers' => [
-							'Authorization' => 'Bearer ' . $this->token,        
+							'Authorization' => 'Bearer ' . $this->token,
 							'Accept'        => 'application/json',
 						],
 						'http_errors' => false,
 						'verify' => false
-					]
-				);
+					]);
 				
 		$result = json_decode($response->getBody(), true);
 		
@@ -1139,13 +1160,12 @@ class VBO {
 	try {
 		$response = $this->client->request('GET', 'RestoreSessions', [
 						'headers' => [
-							'Authorization' => 'Bearer ' . $this->token,        
+							'Authorization' => 'Bearer ' . $this->token,
 							'Accept'        => 'application/json',
 						],
 						'http_errors' => false,
 						'verify' => false
-					]
-				);
+					]);
 				
 		$result = json_decode($response->getBody(), true);
 		
@@ -1173,13 +1193,12 @@ class VBO {
 	try {
 		$response = $this->client->request('GET', 'RestoreSessions/'.$id.'/Events', [
 						'headers' => [
-							'Authorization' => 'Bearer ' . $this->token,        
+							'Authorization' => 'Bearer ' . $this->token,
 							'Accept'        => 'application/json',
 						],
 						'http_errors' => false,
 						'verify' => false
-					]
-				);
+					]);
 				
 		$result = json_decode($response->getBody(), true);
 		
@@ -1208,18 +1227,17 @@ class VBO {
    * @param $rid Restore Session ID
    * @return $result 
    */
-  public function getMailbox($rid) {
+  public function getMailboxes($rid, $offset = 0, $limit = 50) {
     try {
-        $response = $this->client->request('GET', 'RestoreSessions/'.$rid.'/Organization/Mailboxes/?offset=0&limit=50', [
-                    'headers' => [
-                        'Authorization' => 'Bearer ' . $this->token,
-                        'Accept'        => 'application/json',
-                        'Content-Type'  => 'application/json'
-                    ],
-                    'http_errors' => false,
-                    'verify' => false,
-                ]
-            );
+        $response = $this->client->request('GET', 'RestoreSessions/'.$rid.'/Organization/Mailboxes/?offset='.$offset.'&limit='.$limit, [
+						'headers' => [
+							'Authorization' => 'Bearer ' . $this->token,
+							'Accept'        => 'application/json',
+							'Content-Type'  => 'application/json'
+						],
+						'http_errors' => false,
+						'verify' => false,
+					]);
 
         $result = json_decode($response->getBody(), true);
 
@@ -1252,15 +1270,14 @@ class VBO {
   public function getMailboxID($rid, $mid) {
     try {
         $response = $this->client->request('GET', 'RestoreSessions/'.$rid.'/Organization/Mailboxes/'.$mid, [
-                    'headers' => [
-                        'Authorization' => 'Bearer ' . $this->token,
-                        'Accept'        => 'application/json',
-                        'Content-Type'  => 'application/json'
-                    ],
-                    'http_errors' => false,
-                    'verify' => false,
-                ]
-            );
+						'headers' => [
+							'Authorization' => 'Bearer ' . $this->token,
+							'Accept'        => 'application/json',
+							'Content-Type'  => 'application/json'
+						],
+						'http_errors' => false,
+						'verify' => false,
+					]);
             
         $result = json_decode($response->getBody(), true);
 
@@ -1286,18 +1303,17 @@ class VBO {
    * @param $mid Mailbox ID
    * @return $result 
    */
-  public function getMailboxFolders($mid, $rid, $fid = null) {
+  public function getMailboxFolders($mid, $rid, $offset = 0, $fid = 'null', $limit = 50) {
     try {
-        $response = $this->client->request('GET', 'RestoreSessions/'.$rid.'/Organization/Mailboxes/'.$mid.'/folders?limit=150&parentId='.$fid, [
-                    'headers' => [
-                        'Authorization' => 'Bearer ' . $this->token,
-                        'Accept'        => 'application/json',
-                        'Content-Type'  => 'application/json'
-                    ],
-                    'http_errors' => false,
-                    'verify' => false,
-                ]
-            );
+        $response = $this->client->request('GET', 'RestoreSessions/'.$rid.'/Organization/Mailboxes/'.$mid.'/folders?limit='.$limit.'&parentId='.$fid.'&offset='.$offset, [
+						'headers' => [
+							'Authorization' => 'Bearer ' . $this->token,
+							'Accept'        => 'application/json',
+							'Content-Type'  => 'application/json'
+						],
+						'http_errors' => false,
+						'verify' => false,
+					]);
 
         $result = json_decode($response->getBody(), true);
 
@@ -1324,31 +1340,16 @@ class VBO {
    * @param $offset Offset to start from
    * @return $result 
    */
-  public function getMailboxItems($mid, $rid, $fid = null, $offset = null) {
-    if (isset($fid) || (strcmp($fid, 'null') !== 0)) {
-        $call = 'RestoreSessions/'.$rid.'/Organization/Mailboxes/'.$mid.'/Items?folderId='.$fid;
-
-        if (isset($offset)) {
-            $call .= '&offset=' . $offset . '&limit=30';
-        }
-    } else {
-        $call = 'RestoreSessions/'.$rid.'/Organization/Mailboxes/'.$mid.'/Items';
-        
-        if (isset($offset)) {
-            $call .= '?offset=' . $offset . '&limit=30';
-        }
-    }
-
+  public function getMailboxItems($mid, $rid, $fid = 'null', $offset = 0, $limit = 50) {
     try {
-        $response = $this->client->request('GET', $call, [
-                    'headers' => [
-                        'Authorization' => 'Bearer ' . $this->token,
-                        'Accept'        => 'application/json',
-                    ],
-                    'http_errors' => false,
-                    'verify' => false
-                ]
-            );
+        $response = $this->client->request('GET', 'RestoreSessions/'.$rid.'/Organization/Mailboxes/'.$mid.'/Items?folderId='.$fid.'&offset='.$offset.'&limit='.$limit, [
+						'headers' => [
+							'Authorization' => 'Bearer ' . $this->token,
+							'Accept'        => 'application/json',
+						],
+						'http_errors' => false,
+						'verify' => false
+					]);
 
         $result = json_decode($response->getBody(), true);
 
@@ -1376,27 +1377,77 @@ class VBO {
    * @return $file 
    */
   public function exportMailbox($mid, $rid, $json) {
-    $tmpFile  = sys_get_temp_dir() . '/' . $mid;
+    $tmpFile  = tempnam(sys_get_temp_dir(), $this->alphanum($mid));
     $resource = fopen($tmpFile, 'w');
 
     try {
         $response = $this->client->request('POST', 'RestoreSessions/'.$rid.'/Organization/Mailboxes/'.$mid.'/Action', [
-                    'headers' => [
-                        'Authorization' => 'Bearer ' . $this->token,
-                        'Accept'        => 'application/octet-stream',
-                        'Content-Type'  => 'application/json'
-                    ],
-					'http_errors' => false,
-                    'verify' => false,
-                    'body' => $json,
-                    'sink' => $resource
-                ]
-            );
+						'headers' => [
+							'Authorization' => 'Bearer ' . $this->token,
+							'Accept'        => 'application/octet-stream',
+							'Content-Type'  => 'application/json'
+						],
+						'http_errors' => false,
+						'verify' => false,
+						'body' => $json,
+						'sink' => $resource
+					]);
+
+        if ($response->getStatusCode() === 200) {
+            echo basename($tmpFile);
+        } elseif ($response->getStatusCode() === 401) {
+            $this->logout();
+        } else {
+			$result = json_decode($response->getBody(), true);
+			
+			echo $result['message'];
+        }
+		
+		$response->getBody()->detach();
+		
+		fclose($resource);
+    } catch (RequestException $e) {
+        if ($e->hasResponse()) {
+            $exception = (string) $e->getResponse()->getBody();
+            $exception = json_decode($exception, true);
+
+            echo 'Error: ' . $exception['message'];
+        } else {
+            echo $e->getMessage();
+        }
+    }
+  }
+
+  /**
+   * @param $rid Restore Session ID
+   * @param $mid Mailbox ID
+   * @param $iid Item ID
+   * @param $json JSON format
+   * @return $file 
+   */
+  public function exportMailItem($iid, $mid, $rid, $json) {
+    $tmpFile  = tempnam(sys_get_temp_dir(), $this->alphanum($iid));
+    $resource = fopen($tmpFile, 'w');
+
+    try {
+        $response = $this->client->request('POST', 'RestoreSessions/'.$rid.'/Organization/Mailboxes/'.$mid.'/Items/'.$iid.'/Action', [
+						'headers' => [
+							'Authorization' => 'Bearer ' . $this->token,
+							'Accept'        => 'application/octet-stream',
+							'Content-Type'  => 'application/json'
+						],
+						'http_errors' => false,
+						'verify' => false,
+						'body' => $json,
+						'sink' => $resource,
+					]);
 
         fclose($resource);
         
         if ($response->getStatusCode() === 200) {
-            echo $tmpFile;
+			echo basename($tmpFile);
+        } elseif ($response->getStatusCode() === 401) {
+            $this->logout();
         } else {
 			$result = json_decode($response->getBody(), true);
 			
@@ -1421,74 +1472,29 @@ class VBO {
    * @param $json JSON format
    * @return $file 
    */
-  public function exportMailItem($iid, $mid, $rid, $json) {
-    $tmpFile  = tempnam(sys_get_temp_dir(), $iid);
-    $resource = fopen($tmpFile, 'w');
-
-    try {
-        $response = $this->client->request('POST', 'RestoreSessions/'.$rid.'/Organization/Mailboxes/'.$mid.'/Items/'.$iid.'/Action', [
-                    'headers' => [
-                        'Authorization' => 'Bearer ' . $this->token,
-                        'Accept'        => 'application/octet-stream',
-                        'Content-Type'  => 'application/json'
-                    ],
-					'http_errors' => false,
-                    'verify' => false,
-                    'body' => $json,
-                    'sink' => $resource,
-                ]
-            );
-
-        fclose($resource);
-        
-        if ($response->getStatusCode() === 200) {
-			echo $tmpFile;
-        } else {
-			$result = json_decode($response->getBody(), true);
-			
-			echo $result['message'];
-        }
-    } catch (RequestException $e) {
-        if ($e->hasResponse()) {
-            $exception = (string) $e->getResponse()->getBody();
-            $exception = json_decode($exception, true);
-
-            echo 'Error: ' . $exception['message'];
-        } else {
-            echo $e->getMessage();
-        }
-    }
-  }
-
-  /**
-   * @param $rid Restore Session ID
-   * @param $mid Mailbox ID
-   * @param $iid File name for export
-   * @param $json JSON format
-   * @return $file 
-   */
   public function exportMultipleMailItems($iid, $mid, $rid, $json) {
-    $tmpFile  = sys_get_temp_dir() . '/' . $iid;
+    $tmpFile  = tempnam(sys_get_temp_dir(), $this->alphanum($iid));
     $resource = fopen($tmpFile, 'w');
 
     try {
         $response = $this->client->request('POST', 'RestoreSessions/'.$rid.'/Organization/Mailboxes/'.$mid.'/Items/Action', [
-                    'headers' => [
-                        'Authorization' => 'Bearer ' . $this->token,
-                        'Accept'        => 'application/octet-stream',
-                        'Content-Type'  => 'application/json'
-                    ],
-					'http_errors' => false,
-                    'verify' => false,
-                    'body' => $json,
-                    'sink' => $resource,
-                ]
-            );
+						'headers' => [
+							'Authorization' => 'Bearer ' . $this->token,
+							'Accept'        => 'application/octet-stream',
+							'Content-Type'  => 'application/json'
+						],
+						'http_errors' => false,
+						'verify' => false,
+						'body' => $json,
+						'sink' => $resource,
+					]);
 
         fclose($resource);
         
         if ($response->getStatusCode() === 200) {
-            echo $tmpFile;
+            echo basename($tmpFile);
+        } elseif ($response->getStatusCode() === 401) {
+            $this->logout();
         } else {
 			$result = json_decode($response->getBody(), true);
 			
@@ -1515,33 +1521,26 @@ class VBO {
   public function restoreMailbox($mid, $rid, $json) {
     try {
         $response = $this->client->request('POST', 'RestoreSessions/'.$rid.'/Organization/Mailboxes/'.$mid.'/Action', [
-                    'headers' => [
-                        'Authorization' => 'Bearer ' . $this->token,
-                        'Accept'        => 'application/json-stream',
-                        'Content-Type'  => 'application/json'
-                    ],
-                    'http_errors' => false,
-                    'verify' => false,
-                    'body' => $json
-                ]
-            );
+						'headers' => [
+							'Authorization' => 'Bearer ' . $this->token,
+							'Accept'        => 'application/json-stream',
+							'Content-Type'  => 'application/json'
+						],
+						'http_errors' => false,
+						'verify' => false,
+						'body' => $json
+					]);
                 
-        $result = json_decode($response->getBody(), true);
-
         if ($response->getStatusCode() === 200) {
-            if ($result['createdItemsCount'] >= '1') {
-                echo 'Mailbox has been restored.';
-            } elseif ($result['mergedItemsCount'] == '1') {
-                echo 'Item has been restored and has been merged.';
-            } elseif ($result['failedItemsCount'] == '1') {
-                echo 'Item restore failed.';
-            } elseif ($result['skippedItemsCount'] == '1') {
-                echo 'Item has been skipped.';
-            } else {
-                echo 'Restore failed.';
-            }
+			$result = json_decode($response->getBody(), true);
+			
+			return($result);
+        } elseif ($response->getStatusCode() === 401) {
+            $this->logout();
         } else {
-            echo 'Restore failed: ' . $result['message'];
+			$result = array('restoreFailed' => $result['message']);
+		
+            return($result);
         }
     } catch (RequestException $e) {
         if ($e->hasResponse()) {
@@ -1565,33 +1564,26 @@ class VBO {
   public function restoreMailItem($iid, $mid, $rid, $json) {
     try {
         $response = $this->client->request('POST', 'RestoreSessions/'.$rid.'/Organization/Mailboxes/'.$mid.'/Items/'.$iid.'/Action', [
-                    'headers' => [
-                        'Authorization' => 'Bearer ' . $this->token,
-                        'Accept'        => 'application/json-stream',
-                        'Content-Type'  => 'application/json'
-                    ],
-                    'http_errors' => false,
-                    'verify' => false,
-                    'body' => $json
-                ]
-            );
+						'headers' => [
+							'Authorization' => 'Bearer ' . $this->token,
+							'Accept'        => 'application/json-stream',
+							'Content-Type'  => 'application/json'
+						],
+						'http_errors' => false,
+						'verify' => false,
+						'body' => $json
+					]);
                 
-        $result = json_decode($response->getBody(), true);
-
         if ($response->getStatusCode() === 200) {
-            if ($result['createdItemsCount'] == '1') {
-                echo 'Item has been restored.';
-            } elseif ($result['mergedItemsCount'] == '1') {
-                echo 'Item has been restored and has been merged.';
-            } elseif ($result['failedItemsCount'] == '1') {
-                echo 'Item restore failed.';
-            } elseif ($result['skippedItemsCount'] == '1') {
-                echo 'Item has been skipped.';
-            } else {
-                echo 'Restore failed: ' . $result['message'];
-            }
+			$result = json_decode($response->getBody(), true);
+			
+			return($result);
+        } elseif ($response->getStatusCode() === 401) {
+            $this->logout();
         } else {
-            echo 'Restore failed: ' . $result['message'];
+			$result = array('restoreFailed' => $result['message']);
+		
+            return($result);
         }
     } catch (RequestException $e) {
         if ($e->hasResponse()) {
@@ -1614,33 +1606,26 @@ class VBO {
   public function restoreMultipleMailItems($mid, $rid, $json) {
     try {
         $response = $this->client->request('POST', 'RestoreSessions/'.$rid.'/Organization/Mailboxes/'.$mid.'/Items/Action', [
-                    'headers' => [
-                        'Authorization' => 'Bearer ' . $this->token,
-                        'Accept'        => 'application/json-stream',
-                        'Content-Type'  => 'application/json'
-                    ],
-                    'http_errors' => false,
-                    'verify' => false,
-                    'body' => $json
-                ]
-            );
-                
-        $result = json_decode($response->getBody(), true);
+						'headers' => [
+							'Authorization' => 'Bearer ' . $this->token,
+							'Accept'        => 'application/json-stream',
+							'Content-Type'  => 'application/json'
+						],
+						'http_errors' => false,
+						'verify' => false,
+						'body' => $json
+					]);
 
         if ($response->getStatusCode() === 200) {
-            if ($result['createdItemsCount'] >= '1') {
-                echo 'Items have been restored.';
-            } elseif ($result['mergedItemsCount'] == '1') {
-                echo 'Items have been restored and have been merged.';
-            } elseif ($result['failedItemsCount'] == '1') {
-                echo 'Items restore failed.';
-            } elseif ($result['skippedItemsCount'] == '1') {
-                echo 'Items have been skipped.';
-            } else {
-                echo 'Restore failed: ' . $result['message'];
-            }
+			$result = json_decode($response->getBody(), true);
+			
+			return($result);
+        } elseif ($response->getStatusCode() === 401) {
+            $this->logout();
         } else {
-            echo 'Restore failed: ' . $result['message'];
+			$result = array('restoreFailed' => $result['message']);
+		
+            return($result);
         }
     } catch (RequestException $e) {
         if ($e->hasResponse()) {
@@ -1662,18 +1647,17 @@ class VBO {
    * @param $rid Restore Session ID
    * @return $result 
    */
-  public function getOneDrives($rid) {
+  public function getOneDrives($rid, $offset = 0, $limit = 50) {
     try {
-        $response = $this->client->request('GET', 'RestoreSessions/'.$rid.'/Organization/OneDrives?offset=0&limit=150', [
-                    'headers' => [
-                        'Authorization' => 'Bearer ' . $this->token,
-                        'Accept'        => 'application/json',
-                        'Content-Type'  => 'application/json'
-                    ],
-                    'http_errors' => false,
-                    'verify' => false,
-                ]
-            );
+        $response = $this->client->request('GET', 'RestoreSessions/'.$rid.'/Organization/OneDrives?offset='.$offset.'&limit='.$limit, [
+						'headers' => [
+							'Authorization' => 'Bearer ' . $this->token,
+							'Accept'        => 'application/json',
+							'Content-Type'  => 'application/json'
+						],
+						'http_errors' => false,
+						'verify' => false,
+					]);
 
         $result = json_decode($response->getBody(), true);
 
@@ -1700,24 +1684,26 @@ class VBO {
 
   /**
    * @param $rid Restore Session ID
-   * @param $uid User ID
+   * @param $uid OneDrive User ID
+   * @param $offset Offset
+   * @param $fid Folder ID
+   * @param $limit Limit (default: 50)
    * @return $result 
    */
-  public function getOneDriveID($rid, $uid) {
+  public function getOneDriveFolders($rid, $uid, $fid = 'null', $offset = 0, $limit = 50) {
     try {
-        $response = $this->client->request('GET', 'RestoreSessions/'.$rid.'/Organization/OneDrives/'.$uid, [
-                    'headers' => [
-                        'Authorization' => 'Bearer ' . $this->token,
-                        'Accept'        => 'application/json',
-                        'Content-Type'  => 'application/json'
-                    ],
-                    'http_errors' => false,
-                    'verify' => false,
-                ]
-            );
-            
-        $result = json_decode($response->getBody(), true);
+        $response = $this->client->request('GET', 'RestoreSessions/'.$rid.'/Organization/OneDrives/'.$uid.'/Folders?limit='.$limit.'&parentID='.$fid.'&offset='.$offset, [
+						'headers' => [
+							'Authorization' => 'Bearer ' . $this->token,
+							'Accept'        => 'application/json',
+							'Content-Type'  => 'application/json'
+						],
+						'http_errors' => false,
+						'verify' => false,
+					]);
 
+        $result = json_decode($response->getBody(), true);
+        
         if ($response->getStatusCode() === 200) {
             return($result);
         } elseif ($response->getStatusCode() === 401) {
@@ -1734,30 +1720,24 @@ class VBO {
         }
     }
   }
-
+  
   /**
    * @param $rid Restore Session ID
-   * @param $uid OneDrive User ID
-   * @param $pid Parent ID (null or item ID)
-   * @param $type Folders (default) or documents
-   * @param $parent Request parent folder - true or false
+   * @param $uid User ID
    * @return $result 
    */
-  public function getOneDriveParentFolder($rid, $uid, $type = 'Folders', $pid) {
-    $call = 'RestoreSessions/'.$rid.'/Organization/OneDrives/'.$uid.'/'.$type.'/'.$pid;
-
+  public function getOneDriveID($rid, $uid) {
     try {
-        $response = $this->client->request('GET', $call, [
-                    'headers' => [
-                        'Authorization' => 'Bearer ' . $this->token,
-                        'Accept'        => 'application/json',
-                        'Content-Type'  => 'application/json'
-                    ],
-                    'http_errors' => false,
-                    'verify' => false,
-                ]
-            );
-
+        $response = $this->client->request('GET', 'RestoreSessions/'.$rid.'/Organization/OneDrives/'.$uid, [
+						'headers' => [
+							'Authorization' => 'Bearer ' . $this->token,
+							'Accept'        => 'application/json',
+							'Content-Type'  => 'application/json'
+						],
+						'http_errors' => false,
+						'verify' => false,
+					]);
+            
         $result = json_decode($response->getBody(), true);
 
         if ($response->getStatusCode() === 200) {
@@ -1785,34 +1765,17 @@ class VBO {
    * @param $offset Offset
    * @return $result 
    */
-  public function getOneDriveTree($rid, $uid, $type = 'Folders', $pid = null, $offset = null) {
-    $call = 'RestoreSessions/'.$rid.'/Organization/OneDrives/'.$uid.'/'.$type;
-
-    if (isset($pid)) {
-        $call .= '?parentID=' . $pid;
-        
-        if (isset($offset)) {
-            $call .= '&offset=' . $offset;
-        }
-    } else {
-		$call .= '?parentID=null';
-		
-        if (isset($offset)) {
-            $call .= '&offset=' . $offset;
-        }
-    }
-
+  public function getOneDriveTree($rid, $uid, $type = 'Folders', $pid = 'null', $offset = 0, $limit = 50) {
     try {
-        $response = $this->client->request('GET', $call, [
-                    'headers' => [
-                        'Authorization' => 'Bearer ' . $this->token,
-                        'Accept'        => 'application/json',
-                        'Content-Type'  => 'application/json'
-                    ],
-                    'http_errors' => false,
-                    'verify' => false,
-                ]
-            );
+        $response = $this->client->request('GET', 'RestoreSessions/'.$rid.'/Organization/OneDrives/'.$uid.'/'.$type.'?limit='.$limit.'&parentID='.$pid.'&offset='.$offset, [
+						'headers' => [
+							'Authorization' => 'Bearer ' . $this->token,
+							'Accept'        => 'application/json',
+							'Content-Type'  => 'application/json'
+						],
+						'http_errors' => false,
+						'verify' => false,
+					]);
 
         $result = json_decode($response->getBody(), true);
         
@@ -1840,26 +1803,27 @@ class VBO {
    * @return $file
    */
   public function exportOneDrive($uid, $rid, $json) {
-    $tmpFile  = sys_get_temp_dir() . '/' . $uid;
+    $tmpFile  = tempnam(sys_get_temp_dir(), $this->alphanum($uid));
     $resource = fopen($tmpFile, 'w');
 
     try {
         $response = $this->client->request('POST', 'RestoreSessions/'.$rid.'/Organization/OneDrives/'.$uid.'/Action', [
-                    'headers' => [
-                        'Authorization' => 'Bearer ' . $this->token,
-                        'Accept'        => 'application/octet-stream',
-                        'Content-Type'  => 'application/json'
-                    ],
-                    'verify' => false,
-                    'body' => $json,
-                    'sink' => $resource,
-                ]
-            );
+						'headers' => [
+							'Authorization' => 'Bearer ' . $this->token,
+							'Accept'        => 'application/octet-stream',
+							'Content-Type'  => 'application/json'
+						],
+						'verify' => false,
+						'body' => $json,
+						'sink' => $resource,
+					]);
 
         fclose($resource);
 
         if ($response->getStatusCode() === 200) {
-            echo $tmpFile;
+            echo basename($tmpFile);
+        } elseif ($response->getStatusCode() === 401) {
+            $this->logout();
         } else {
 			$result = json_decode($response->getBody(), true);
 			
@@ -1886,26 +1850,27 @@ class VBO {
    * @return $file
    */
   public function exportOneDriveItem($iid, $uid, $rid, $json, $type = 'Folders') {
-    $tmpFile  = sys_get_temp_dir() . '/' . $iid;
+    $tmpFile  = tempnam(sys_get_temp_dir(), $this->alphanum($iid));
     $resource = fopen($tmpFile, 'w');
 
     try {
         $response = $this->client->request('POST', 'RestoreSessions/'.$rid.'/Organization/OneDrives/'.$uid.'/'.$type.'/'.$iid.'/Action', [
-                    'headers' => [
-                        'Authorization' => 'Bearer ' . $this->token,
-                        'Accept'        => 'application/octet-stream',
-                        'Content-Type'  => 'application/json'
-                    ],
-                    'verify' => false,
-                    'body' => $json,
-                    'sink' => $resource,
-                ]
-            );
+						'headers' => [
+							'Authorization' => 'Bearer ' . $this->token,
+							'Accept'        => 'application/octet-stream',
+							'Content-Type'  => 'application/json'
+						],
+						'verify' => false,
+						'body' => $json,
+						'sink' => $resource,
+					]);
 
         fclose($resource);
 
         if ($response->getStatusCode() === 200) {
-            echo $tmpFile;
+            echo basename($tmpFile);
+        } elseif ($response->getStatusCode() === 401) {
+            $this->logout();
         } else {
 			$result = json_decode($response->getBody(), true);
 			
@@ -1932,27 +1897,28 @@ class VBO {
    * @return $file
    */
   public function exportMultipleOneDriveItems($iid, $uid, $rid, $json, $type = 'Documents') {
-    $tmpFile  = sys_get_temp_dir() . '/' . $iid;
+    $tmpFile  = tempnam(sys_get_temp_dir(), $this->alphanum($iid));
     $resource = fopen($tmpFile, 'w');
 
     try {
         $response = $this->client->request('POST', 'RestoreSessions/'.$rid.'/Organization/OneDrives/'.$uid.'/'.$type.'/Action', [
-                    'headers' => [
-                        'Authorization' => 'Bearer ' . $this->token,
-                        'Accept'        => 'application/octet-stream',
-                        'Content-Type'  => 'application/json'
-                    ],
-					'http_errors' => false,
-                    'verify' => false,
-                    'body' => $json,
-                    'sink' => $resource,
-                ]
-            );
+						'headers' => [
+							'Authorization' => 'Bearer ' . $this->token,
+							'Accept'        => 'application/octet-stream',
+							'Content-Type'  => 'application/json'
+						],
+						'http_errors' => false,
+						'verify' => false,
+						'body' => $json,
+						'sink' => $resource,
+					]);
 
         fclose($resource);
         
         if ($response->getStatusCode() === 200) {
-            echo $tmpFile;
+            echo basename($tmpFile);
+        } elseif ($response->getStatusCode() === 401) {
+            $this->logout();
         } else {
 			$result = json_decode($response->getBody(), true);
 			
@@ -1979,27 +1945,26 @@ class VBO {
   public function restoreOneDrive($uid, $rid, $json) {
     try {
         $response = $this->client->request('POST', 'RestoreSessions/'.$rid.'/Organization/OneDrives/'.$uid.'/Action', [
-                    'headers' => [
-                        'Authorization' => 'Bearer ' . $this->token,
-                        'Accept'        => 'application/json-stream',
-                        'Content-Type'  => 'application/json'
-                    ],
-                    'http_errors' => false,
-                    'verify' => false,
-                    'body' => $json,
-                ]
-            );
-
-        $result = json_decode($response->getBody(), true);
+						'headers' => [
+							'Authorization' => 'Bearer ' . $this->token,
+							'Accept'        => 'application/json-stream',
+							'Content-Type'  => 'application/json'
+						],
+						'http_errors' => false,
+						'verify' => false,
+						'body' => $json,
+					]);
 
         if ($response->getStatusCode() === 200) {
-            if ($result['restoredItemsCount'] >= '1') {
-                echo 'Item has been restored.';
-            } else {
-                echo 'Failed to restore the item.';
-            }
+			$result = json_decode($response->getBody(), true);
+			
+			return($result);
+        } elseif ($response->getStatusCode() === 401) {
+            $this->logout();
         } else {
-            echo 'Restore failed: ' . $result['message'];
+			$result = array('restoreFailed' => $result['message']);
+		
+            return($result);
         }
     } catch (RequestException $e) {
         if ($e->hasResponse()) {
@@ -2024,27 +1989,26 @@ class VBO {
   public function restoreOneDriveItem($iid, $uid, $rid, $json, $type = 'Folders') {
     try {
         $response = $this->client->request('POST', 'RestoreSessions/'.$rid.'/Organization/OneDrives/'.$uid.'/'.$type.'/'.$iid.'/Action', [
-                    'headers' => [
-                        'Authorization' => 'Bearer ' . $this->token,
-                        'Accept'        => 'application/json-stream',
-                        'Content-Type'  => 'application/json'
-                    ],
-                    'http_errors' => false,
-                    'verify' => false,
-                    'body' => $json,
-                ]
-            );
-
-        $result = json_decode($response->getBody(), true);
+						'headers' => [
+							'Authorization' => 'Bearer ' . $this->token,
+							'Accept'        => 'application/json-stream',
+							'Content-Type'  => 'application/json'
+						],
+						'http_errors' => false,
+						'verify' => false,
+						'body' => $json,
+					]);
 
         if ($response->getStatusCode() === 200) {
-            if ($result['restoredItemsCount'] >= '1') {
-                echo 'Item has been restored.';
-            } else {
-                echo 'Failed to restore the item.';
-            }
+			$result = json_decode($response->getBody(), true);
+			
+			return($result);
+        } elseif ($response->getStatusCode() === 401) {
+            $this->logout();
         } else {
-            echo $response->getStatusCode() . ' Restore failed: ' . $result['message'];
+			$result = array('restoreFailed' => $result['message']);
+		
+            return($result);
         }
     } catch (RequestException $e) {
         if ($e->hasResponse()) {
@@ -2068,27 +2032,24 @@ class VBO {
   public function restoreMultipleOneDriveItems($uid, $rid, $json, $type = 'Documents') {
     try {
         $response = $this->client->request('POST', 'RestoreSessions/'.$rid.'/Organization/OneDrives/'.$uid.'/'.$type.'/Action', [
-                    'headers' => [
-                        'Authorization' => 'Bearer ' . $this->token,
-                        'Accept'        => 'application/json-stream',
-                        'Content-Type'  => 'application/json'
-                    ],
-                    'http_errors' => false,
-                    'verify' => false,
-                    'body' => $json,
-                ]
-            );
-
-        $result = json_decode($response->getBody(), true);
+						'headers' => [
+							'Authorization' => 'Bearer ' . $this->token,
+							'Accept'        => 'application/json-stream',
+							'Content-Type'  => 'application/json'
+						],
+						'http_errors' => false,
+						'verify' => false,
+						'body' => $json,
+					]);
 
         if ($response->getStatusCode() === 200) {
-            if ($result['restoredItemsCount'] >= '1') {
-                echo 'Items have been restored.';
-            } else {
-                echo 'Failed to restore the items.';
-            }
+			$result = json_decode($response->getBody(), true);
+			
+			return($result);
         } else {
-            echo $response->getStatusCode() . ' Restore failed: ' . $result['message'];
+			$result = array('restoreFailed' => $result['message']);
+		
+            return($result);
         }
     } catch (RequestException $e) {
         if ($e->hasResponse()) {
@@ -2111,18 +2072,17 @@ class VBO {
    * @param $rid Restore Session ID
    * @return $result 
    */
-  public function getSharePointSites($rid) {
+  public function getSharePointSites($rid, $offset = 0) {
     try {
-        $response = $this->client->request('GET', 'RestoreSessions/'.$rid.'/Organization/Sites?offset=0&limit=50', [
-                    'headers' => [
-                        'Authorization' => 'Bearer ' . $this->token,
-                        'Accept'        => 'application/json',
-                        'Content-Type'  => 'application/json'
-                    ],
-                    'http_errors' => false,
-                    'verify' => false,
-                ]
-            );
+        $response = $this->client->request('GET', 'RestoreSessions/'.$rid.'/Organization/Sites?offset='.$offset.'&parentId=null', [
+						'headers' => [
+							'Authorization' => 'Bearer ' . $this->token,
+							'Accept'        => 'application/json',
+							'Content-Type'  => 'application/json'
+						],
+						'http_errors' => false,
+						'verify' => false,
+					]);
 
         $result = json_decode($response->getBody(), true);
 
@@ -2152,24 +2112,17 @@ class VBO {
    * @param $sid SharePoint Site ID
    * @return $result 
    */
-  public function getSharePointContent($rid, $sid, $type, $fid = null) {
-	$call = 'RestoreSessions/'.$rid.'/Organization/Sites/'.$sid.'/'.$type;
-	
-	if (isset($fid)) {
-        $call .= '/' . $fid;
-    }
-	
+  public function getSharePointContent($rid, $sid, $type, $offset = 0, $limit = 50) {
     try {
-        $response = $this->client->request('GET', $call, [
-                    'headers' => [
-                        'Authorization' => 'Bearer ' . $this->token,
-                        'Accept'        => 'application/json',
-                        'Content-Type'  => 'application/json'
-                    ],
-                    'http_errors' => false,
-                    'verify' => false,
-                ]
-            );
+        $response = $this->client->request('GET', 'RestoreSessions/'.$rid.'/Organization/Sites/'.$sid.'/'.$type.'?limit='.$limit.'&offset='.$offset, [
+						'headers' => [
+							'Authorization' => 'Bearer ' . $this->token,
+							'Accept'        => 'application/json',
+							'Content-Type'  => 'application/json'
+						],
+						'http_errors' => false,
+						'verify' => false,
+					]);
 
         $result = json_decode($response->getBody(), true);
 
@@ -2182,6 +2135,45 @@ class VBO {
         } else {
 			echo $response->getStatusCode() . ' - ' . $result['message'];
 		}
+    } catch (RequestException $e) {
+        if ($e->hasResponse()) {
+            $exception = (string) $e->getResponse()->getBody();
+            $exception = json_decode($exception, true);
+
+            echo 'Error: ' . $exception['message'];
+        } else {
+            echo $e->getMessage();
+        }
+    }
+  }
+
+  /**
+   * @param $rid Restore Session ID
+   * @param $sid SharePoint Site ID
+   * @param $offset Offset
+   * @param $fid Folder ID
+   * @param $limit Limit (default: 50)
+   * @return $result 
+   */
+  public function getSharePointFolders($rid, $sid, $fid = 'null', $offset = 0, $limit = 50) {
+    try {
+        $response = $this->client->request('GET', 'RestoreSessions/'.$rid.'/Organization/Sites/'.$sid.'/Folders?parentId='.$fid.'&offset='.$offset.'&limit='.$limit, [
+						'headers' => [
+							'Authorization' => 'Bearer ' . $this->token,
+							'Accept'        => 'application/json',
+							'Content-Type'  => 'application/json'
+						],
+						'http_errors' => false,
+						'verify' => false,
+					]);
+
+        $result = json_decode($response->getBody(), true);
+
+        if ($response->getStatusCode() === 200) {		
+			return($result);
+        } elseif ($response->getStatusCode() === 401) {
+            $this->logout();
+        }
     } catch (RequestException $e) {
         if ($e->hasResponse()) {
             $exception = (string) $e->getResponse()->getBody();
@@ -2204,15 +2196,14 @@ class VBO {
   public function getSharePointListName($rid, $sid, $cid, $type = 'Folders') {
     try {
         $response = $this->client->request('GET', 'RestoreSessions/'.$rid.'/Organization/Sites/'.$sid.'/'.$type.'/'.$cid, [
-                    'headers' => [
-                        'Authorization' => 'Bearer ' . $this->token,
-                        'Accept'        => 'application/json',
-                        'Content-Type'  => 'application/json'
-                    ],
-                    'http_errors' => false,
-                    'verify' => false,
-                ]
-            );
+						'headers' => [
+							'Authorization' => 'Bearer ' . $this->token,
+							'Accept'        => 'application/json',
+							'Content-Type'  => 'application/json'
+						],
+						'http_errors' => false,
+						'verify' => false,
+					]);
 
         $result = json_decode($response->getBody(), true);
 
@@ -2241,15 +2232,14 @@ class VBO {
   public function getSharePointSiteName($rid, $sid) {
     try {
         $response = $this->client->request('GET', 'RestoreSessions/'.$rid.'/Organization/Sites/'.$sid, [
-                    'headers' => [
-                        'Authorization' => 'Bearer ' . $this->token,
-                        'Accept'        => 'application/json',
-                        'Content-Type'  => 'application/json'
-                    ],
-                    'http_errors' => false,
-                    'verify' => false,
-                ]
-            );
+						'headers' => [
+							'Authorization' => 'Bearer ' . $this->token,
+							'Accept'        => 'application/json',
+							'Content-Type'  => 'application/json'
+						],
+						'http_errors' => false,
+						'verify' => false,
+					]);
 
         $result = json_decode($response->getBody(), true);
 
@@ -2278,24 +2268,17 @@ class VBO {
    * @param $offset Offset
    * @return $result 
    */
-  public function getSharePointTree($rid, $sid, $pid, $type = 'Folders', $offset = null) {
-    $call = 'RestoreSessions/'.$rid.'/Organization/Sites/'.$sid.'/'.$type.'?parentId='.$pid;
-
-    if (isset($offset)) {
-        $call .= '&offset=' . $offset;
-    }
-
+  public function getSharePointItems($rid, $sid, $pid = 'null', $type = 'Folders', $offset = 0, $limit = 50) {
     try {
-        $response = $this->client->request('GET', $call, [
-                    'headers' => [
-                        'Authorization' => 'Bearer ' . $this->token,
-                        'Accept'        => 'application/json',
-                        'Content-Type'  => 'application/json'
-                    ],
-                    'http_errors' => false,
-                    'verify' => false,
-                ]
-            );
+        $response = $this->client->request('GET', 'RestoreSessions/'.$rid.'/Organization/Sites/'.$sid.'/'.$type.'?parentId='.$pid.'&offset='.$offset.'&limit='.$limit, [
+						'headers' => [
+							'Authorization' => 'Bearer ' . $this->token,
+							'Accept'        => 'application/json',
+							'Content-Type'  => 'application/json'
+						],
+						'http_errors' => false,
+						'verify' => false,
+					]);
 
         $result = json_decode($response->getBody(), true);
 
@@ -2323,26 +2306,27 @@ class VBO {
    * @return $file
    */
   public function exportSharePoint($sid, $rid, $json) {
-    $tmpFile  = sys_get_temp_dir() . '/' . $sid;
+    $tmpFile  = tempnam(sys_get_temp_dir(), $this->alphanum($sid));
     $resource = fopen($tmpFile, 'w');
 
     try {
         $response = $this->client->request('POST', 'RestoreSessions/'.$rid.'/Organization/Sites/'.$sid.'/Action', [
-                    'headers' => [
-                        'Authorization' => 'Bearer ' . $this->token,
-                        'Accept'        => 'application/octet-stream',
-                        'Content-Type'  => 'application/json'
-                    ],
-                    'verify' => false,
-                    'body' => $json,
-                    'sink' => $resource,
-                ]
-            );
+						'headers' => [
+							'Authorization' => 'Bearer ' . $this->token,
+							'Accept'        => 'application/octet-stream',
+							'Content-Type'  => 'application/json'
+						],
+						'verify' => false,
+						'body' => $json,
+						'sink' => $resource,
+					]);
 
         fclose($resource);
 
         if ($response->getStatusCode() === 200) {
-            echo $tmpFile;
+            echo basename($tmpFile);
+        } elseif ($response->getStatusCode() === 401) {
+            $this->logout();
         } else {
 			$result = json_decode($response->getBody(), true);
 			
@@ -2369,26 +2353,27 @@ class VBO {
    * @return $file
    */
   public function exportSharePointItem($iid, $sid, $rid, $json, $type = 'Folders') {
-    $tmpFile  = sys_get_temp_dir() . '/' . $iid;
+    $tmpFile  = tempnam(sys_get_temp_dir(), $this->alphanum($iid));
     $resource = fopen($tmpFile, 'w');
 
     try {
         $response = $this->client->request('POST', 'RestoreSessions/'.$rid.'/Organization/Sites/'.$sid.'/'.$type.'/'.$iid.'/Action', [
-                    'headers' => [
-                        'Authorization' => 'Bearer ' . $this->token,
-                        'Accept'        => 'application/octet-stream',
-                        'Content-Type'  => 'application/json'
-                    ],
-                    'verify' => false,
-                    'body' => $json,
-                    'sink' => $resource,
-                ]
-            );
+						'headers' => [
+							'Authorization' => 'Bearer ' . $this->token,
+							'Accept'        => 'application/octet-stream',
+							'Content-Type'  => 'application/json'
+						],
+						'verify' => false,
+						'body' => $json,
+						'sink' => $resource,
+					]);
 
         fclose($resource);
 
         if ($response->getStatusCode() === 200) {
-            echo $tmpFile;
+            echo basename($tmpFile);
+        } elseif ($response->getStatusCode() === 401) {
+            $this->logout();
         } else {
 			$result = json_decode($response->getBody(), true);
 			
@@ -2415,26 +2400,27 @@ class VBO {
    * @return $file
    */
   public function exportMultipleSharePointItems($iid, $sid, $rid, $json, $type = 'Documents') {
-    $tmpFile  = sys_get_temp_dir() . '/' . $iid;
+    $tmpFile  = tempnam(sys_get_temp_dir(), $this->alphanum($iid));
     $resource = fopen($tmpFile, 'w');
 
     try {
         $response = $this->client->request('POST', 'RestoreSessions/'.$rid.'/Organization/Sites/'.$sid.'/'.$type.'/Action', [
-                    'headers' => [
-                        'Authorization' => 'Bearer ' . $this->token,
-                        'Accept'        => 'application/octet-stream',
-                        'Content-Type'  => 'application/json'
-                    ],
-                    'verify' => false,
-                    'body' => $json,
-                    'sink' => $resource,
-                ]
-            );
+						'headers' => [
+							'Authorization' => 'Bearer ' . $this->token,
+							'Accept'        => 'application/octet-stream',
+							'Content-Type'  => 'application/json'
+						],
+						'verify' => false,
+						'body' => $json,
+						'sink' => $resource,
+					]);
 
         fclose($resource);
 
         if ($response->getStatusCode() === 200) {
-            echo $tmpFile;
+            echo basename($tmpFile);
+        } elseif ($response->getStatusCode() === 401) {
+            $this->logout();
         } else {
 			$result = json_decode($response->getBody(), true);
 			
@@ -2461,31 +2447,26 @@ class VBO {
   public function restoreSharePoint($sid, $rid, $json) {
     try {
         $response = $this->client->request('POST', 'RestoreSessions/'.$rid.'/Organization/Sites/'.$sid.'/Action', [
-                    'headers' => [
-                        'Authorization' => 'Bearer ' . $this->token,
-                        'Accept'        => 'application/json-stream',
-                        'Content-Type'  => 'application/json'
-                    ],
-                    'http_errors' => false,
-                    'verify' => false,
-                    'body' => $json,
-                ]
-            );
-
-        $result = json_decode($response->getBody(), true);
+						'headers' => [
+							'Authorization' => 'Bearer ' . $this->token,
+							'Accept'        => 'application/json-stream',
+							'Content-Type'  => 'application/json'
+						],
+						'http_errors' => false,
+						'verify' => false,
+						'body' => $json,
+					]);
 
         if ($response->getStatusCode() === 200) {
-            if (count($result['restoreIssues']) >= '1') {
-                echo 'SharePoint site has been restored with warnings.';
-            } elseif ($result['failedWebsCount'] >= '1') {
-				echo 'Failed to restore the SharePoint site.';
-			} elseif ($result['failedRestrictionsCount'] >= '1') {
-				echo 'Failed to restore the SharePoint site due to restrictions errors.';
-			} else {
-                echo 'SharePoint site has been restored.';
-            }
+			$result = json_decode($response->getBody(), true);
+			
+			return($result);
+        } elseif ($response->getStatusCode() === 401) {
+            $this->logout();
         } else {
-            echo 'Restore failed: ' . $result['message'];
+			$result = array('restoreFailed' => $result['message']);
+		
+            return($result);
         }
     } catch (RequestException $e) {
         if ($e->hasResponse()) {
@@ -2510,32 +2491,27 @@ class VBO {
   public function restoreSharePointItem($iid, $sid, $rid, $json, $type = 'Folders') {
     try {
         $response = $this->client->request('POST', 'RestoreSessions/'.$rid.'/Organization/Sites/'.$sid.'/'.$type.'/'.$iid.'/Action', [
-                    'headers' => [
-                        'Authorization' => 'Bearer ' . $this->token,
-                        'Accept'        => 'application/json-stream',
-                        'Content-Type'  => 'application/json'
-                    ],
-                    'http_errors' => false,
-                    'verify' => false,
-                    'body' => $json,
-                ]
-            );
-
-        $result = json_decode($response->getBody(), true);
-
-        if ($response->getStatusCode() === 200) {
-            if ($result['restoredItemsCount'] >= '1') {
-                echo 'Item has been restored.';
-            } elseif ($result['skippedItemsByNoChangesCount'] == '1') {
-                echo 'Failed to restore the item: items already exists with the same permissions.';
-            } elseif ($result['failedRestrictionsCount'] == '1') {
-                echo 'Failed to restore the item: permission denied to restore the item with this account.';
-            }  else {
-                echo 'Failed to restore the item.';
-            }
+						'headers' => [
+							'Authorization' => 'Bearer ' . $this->token,
+							'Accept'        => 'application/json-stream',
+							'Content-Type'  => 'application/json'
+						],
+						'http_errors' => false,
+						'verify' => false,
+						'body' => $json,
+					]);
+		
+		if ($response->getStatusCode() === 200) {
+			$result = json_decode($response->getBody(), true);
+			
+			return($result);
+        } elseif ($response->getStatusCode() === 401) {
+            $this->logout();
         } else {
-            echo 'Restore failed: ' . $result['message'];
-        }
+			$result = array('restoreFailed' => $result['message']);
+		
+            return($result);
+        }	
     } catch (RequestException $e) {
         if ($e->hasResponse()) {
             $exception = (string) $e->getResponse()->getBody();
@@ -2558,27 +2534,26 @@ class VBO {
   public function restoreMultipleSharePointItems($sid, $rid, $json, $type = 'Documents') {
    try {
         $response = $this->client->request('POST', 'RestoreSessions/'.$rid.'/Organization/Sites/'.$sid.'/'.$type.'/Action', [
-                    'headers' => [
-                        'Authorization' => 'Bearer ' . $this->token,
-                        'Accept'        => 'application/json-stream',
-                        'Content-Type'  => 'application/json'
-                    ],
-                    'http_errors' => false,
-                    'verify' => false,
-                    'body' => $json,
-                ]
-            );
-
-        $result = json_decode($response->getBody(), true);
+						'headers' => [
+							'Authorization' => 'Bearer ' . $this->token,
+							'Accept'        => 'application/json-stream',
+							'Content-Type'  => 'application/json'
+						],
+						'http_errors' => false,
+						'verify' => false,
+						'body' => $json,
+					]);
 
         if ($response->getStatusCode() === 200) {
-            if ($result['restoredItemsCount'] >= '1') {
-                echo 'Items have been restored.';
-            } else {
-                echo 'Failed to restore the items.';
-            }
+			$result = json_decode($response->getBody(), true);
+			
+			return($result);
+        } elseif ($response->getStatusCode() === 401) {
+            $this->logout();
         } else {
-            echo $response->getStatusCode() . ' Restore failed: ' . $result['message'];
+			$result = array('restoreFailed' => $result['message']);
+		
+            return($result);
         }
     } catch (RequestException $e) {
         if ($e->hasResponse()) {

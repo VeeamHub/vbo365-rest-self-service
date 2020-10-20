@@ -10,8 +10,8 @@ if (empty($host) || empty($port) || empty($version)) {
     exit('Please modify the configuration file first and configure the Veeam Backup for Microsoft Office 365 host, port and RESTful API version settings.');
 }
 
-if (!preg_match('/v[3-4]/', $version)) {
-	exit('Invalid API version found. Please modify the configuration file and configure the Veeam Backup for Microsoft Office 365 RESTful API version setting. Only version 3 and 4 are supported.');
+if (!preg_match('/v[3-5]/', $version)) {
+	exit('Invalid API version found. Please modify the configuration file and configure the Veeam Backup for Microsoft Office 365 RESTful API version setting. Only version 3, 4 and 5 are supported.');
 }
 ?>
 <!DOCTYPE html>
@@ -21,7 +21,7 @@ if (!preg_match('/v[3-4]/', $version)) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title><?php echo $title; ?></title>
     <base href="/" />
-    <link rel="shortcut icon" href="images/favicon.ico" />
+    <link rel="shortcut icon" href="favicon.ico" />
     <link rel="stylesheet" type="text/css" href="css/bootstrap.min.css" />
     <link rel="stylesheet" type="text/css" href="css/flatpickr.min.css">
     <link rel="stylesheet" type="text/css" href="css/fontawesome.min.css" />
@@ -30,6 +30,7 @@ if (!preg_match('/v[3-4]/', $version)) {
 	<link rel="stylesheet" type="text/css" href="css/jstree.min.css" />
     <script src="js/jquery.min.js"></script>
     <script src="js/bootstrap.min.js"></script>
+	<script src="js/clipboard.min.js"></script>
     <script src="js/fontawesome.min.js"></script>
     <script src="js/flatpickr.js"></script>
 	<script src="js/jquery.redirect.js"></script>
@@ -43,11 +44,23 @@ if (isset($_SESSION['token'])) {
 	$veeam = new VBO($host, $port, $version);
     $veeam->setToken($_SESSION['token']);
 	
-    $user = $_SESSION['user'];
+    if (isset($_SESSION['user'])) {
+		$user = $_SESSION['user'];
+	} else {
+		empty($user);
+	}
+	
+	if (isset($_SESSION['authtype'])) {
+		$authtype = $_SESSION['authtype'];
+	}
+	
+	if (isset($_SESSION['applicationid'])) {
+		$applicationid = $_SESSION['applicationid'];
+	}
 ?>
 <nav class="navbar navbar-inverse navbar-static-top">
 	<ul class="nav navbar-header">
-	  <li><a class="navbar-brand navbar-logo" href="/"><img src="images/logo.svg" alt="Veeam Backup for Microsoft Office 365" class="logo" /></a></li>
+	  <li><a class="navbar-brand navbar-logo" href="/"><img src="images/logo.svg" alt="Veeam Backup for Microsoft Office 365" class="logo"></a></li>
 	</ul>
 	<ul class="nav navbar-nav" id="nav">
 	  <li class="active"><a href="exchange">Exchange</a></li>
@@ -60,7 +73,7 @@ if (isset($_SESSION['token'])) {
 	</ul>
 </nav>
 <div class="container-fluid">
-	<link rel="stylesheet" href="css/exchange.css" />
+	<link rel="stylesheet" type="text/css" href="css/exchange.css" />
 	<aside id="sidebar">
 		<div class="logo-container"><i class="logo fa fa-envelope"></i></div>
 		<div class="separator"></div>
@@ -71,8 +84,8 @@ if (isset($_SESSION['token'])) {
 
 			echo '<ul id="ul-exchange-users">';
 			
-			if ($check === false && strtolower($administrator) == 'yes') {
-				$org = $veeam->getOrganizations();
+			if (strtolower($authtype) != 'mfa' && $check === false && strtolower($administrator) == 'yes') {
+				$org = $veeam->getOrganizations();				
 				$oid = $_GET['oid'];
 				$menu = false;
 				
@@ -99,14 +112,14 @@ if (isset($_SESSION['token'])) {
 				$uid = $_GET['uid'];
 				$content = array();
 				$org = $veeam->getOrganizationID($rid);
-				$users = $veeam->getMailbox($rid);
+				$users = $veeam->getMailboxes($rid);
 
-				if ($users == '500') { /* Restore session has expired or was killed */
+				if ($users === 500) {
 					unset($_SESSION['rid']);
 					?>
 					<script>
 					Swal.fire({
-						type: 'info',
+						icon: 'info',
 						title: 'Restore session expired',
 						text: 'Your restore session has expired.'
 					}).then(function(e) {
@@ -136,15 +149,21 @@ if (isset($_SESSION['token'])) {
 					}
 					
 					echo '</ul>';
+
+					if (count($users['results']) >= 50) {
+						echo '<div class="text-center">';
+						echo '<a class="btn btn-default load-more-link load-more-mailboxes" data-org="' . $org['id'] . '" data-offset="' . count($users['results']) . '" href="' . $_SERVER['REQUEST_URI'] . '#">Load more mailboxes</a>';
+						echo '</div>';
+					}
 				}
 			} else {
 				?>
 				<script>
 				Swal.fire({
-					type: 'info',
+					icon: 'info',
 					showConfirmButton: false,
 					title: 'Restore session running',
-					text: 'Found another restore session running, please stop the session first if you want to restore Exchange items.',
+					text: 'Found another restore session running, please stop the session first if you want to restore Exchange items',
 					<?php
 					if (strcmp($_SESSION['rtype'], 'vesp') === 0) {
 						echo "footer: '<a href=\"/sharepoint\">Go to restore session</a>'";
@@ -168,7 +187,7 @@ if (isset($_SESSION['token'])) {
 		<div class="exchange-container">
 			<?php
 			if (isset($oid) || $menu) {
-				if ($check === false && strtolower($administrator) == 'yes') {
+				if (strtolower($authtype) != 'mfa' && $check === false && strtolower($administrator) == 'yes') {
 					$org = $veeam->getOrganizationByID($oid);
 				}
 			?>
@@ -213,7 +232,7 @@ if (isset($_SESSION['token'])) {
 						));
 					}
 
-					if (count($users['results']) != '0') {
+					if (count($users['results']) != 0) {
 						$repousersarray = array();
 						
 						for ($i = 0; $i < count($repo); $i++) {
@@ -238,54 +257,54 @@ if (isset($_SESSION['token'])) {
 						$usersorted = array_values(array_column($repousersarray , null, 'name'));
 					}
 					
-					if (count($usersorted) != '0') {
+					if (count($usersorted) != 0) {
 					?>
-					<div class="alert alert-info">The following is an overview with all the backed up accounts and their Exchange objects within the organization.</div>
-					<table class="table table-bordered table-padding table-striped">
-						<thead>
-							<tr>
-								<th>Account</th>
-								<th>Last backup</th>
-								<th>Objects in backup</th>
-							</tr>
-						</thead>
-						<tbody>
+						<div class="alert alert-info">The following is a limited overview with the backed up accounts and their Exchange objects within the organization. To view the full list, start a restore session.</div>
+						<table class="table table-bordered table-padding table-striped" id="table-exchange-mailboxes">
+							<thead>
+								<tr>
+									<th>Account</th>
+									<th>Last backup</th>
+									<th>Objects in backup</th>
+								</tr>
+							</thead>
+							<tbody>
+							<?php
+							for ($i = 0; $i < count($usersorted); $i++) {
+								$licinfo = array_search($usersorted[$i]['id'], array_column($usersarray, 'id'));
+								
+								echo '<tr>';
+								echo '<td>' . $usersorted[$i]['name'] . ' (' . $usersorted[$i]['email'] . ')</td>';
+								echo '<td>' . date('d/m/Y H:i T', strtotime($usersarray[$licinfo]['lastBackupDate'])) . '</td>';
+								echo '<td>';
+								
+								if ($usersorted[$i]['isMailboxBackedUp']) {
+									echo '<i class="far fa-envelope fa-2x" style="color:green" title="Mailbox"></i> ';
+								} else {
+									echo '<i class="far fa-envelope fa-2x" style="color:red" title="Mailbox"></i> ';
+								}
+								if ($usersorted[$i]['isArchiveBackedUp']) {
+									echo '<i class="fa fa-archive fa-2x" style="color:green" title="Archive"></i> ';
+								} else {
+									echo '<i class="fa fa-archive fa-2x" style="color:red" title="Archive"></i> ';
+								}
+								
+								echo '</td>';
+								echo '</tr>';
+							}
+							?>
+							</tbody>
+						</table>
 						<?php
-						for ($i = 0; $i < count($usersorted); $i++) {
-							$licinfo = array_search($usersorted[$i]['id'], array_column($usersarray, 'id'));
-							
-							echo '<tr>';
-							echo '<td>' . $usersorted[$i]['name'] . ' (' . $usersorted[$i]['email'] . ')</td>';
-							echo '<td>' . date('d/m/Y H:i T', strtotime($usersarray[$licinfo]['lastBackupDate'])) . '</td>';
-							echo '<td>';
-							
-							if ($usersorted[$i]['isMailboxBackedUp']) {
-								echo '<i class="far fa-envelope fa-2x" style="color:green" title="Mailbox"></i> ';
-							} else {
-								echo '<i class="far fa-envelope fa-2x" style="color:red" title="Mailbox"></i> ';
-							}
-							if ($usersorted[$i]['isArchiveBackedUp']) {
-								echo '<i class="fa fa-archive fa-2x" style="color:green" title="Archive"></i> ';
-							} else {
-								echo '<i class="fa fa-archive fa-2x" style="color:red" title="Archive"></i> ';
-							}
-							
-							echo '</td>';
-							echo '</tr>';
-						}
-						?>
-						</tbody>
-					</table>
-					<?php
 					} else {
-						if ($check === false && strtolower($administrator) == 'yes') {
+						if (strtolower($authtype) != 'mfa' && $check === false && strtolower($administrator) == 'yes') {
 							echo '<p>No users found for this organization.</p>';
 						} else {
 							echo '<p>Select a point in time and start the restore.</p>';
 						}
 					}
 				} else {
-					if ($check === false && strtolower($administrator) == 'yes') {
+					if (strtolower($authtype) != 'mfa' && $check === false && strtolower($administrator) == 'yes') {
 						echo '<p>Select an organization to start a restore session.</p>';
 					} else {
 						echo '<p>Select a point in time and start the restore.</p>';
@@ -304,7 +323,7 @@ if (isset($_SESSION['token'])) {
 					}
 					?>
 					<div class="row">
-						<div class="col-sm-2 text-center">
+						<div class="col-sm-2 text-center div-browser">
 							<div class="btn-group dropdown">
 								<button class="btn btn-default dropdown-toggle form-control" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="true">Restore selected <span class="caret"></span></button>
 								<ul class="dropdown-menu dropdown-menu-right">
@@ -318,11 +337,11 @@ if (isset($_SESSION['token'])) {
 							</div>
 						</div>
 						<div class="col-sm-10">
-							<input class="form-control search" id="search-mailbox" placeholder="Filter by item..." />
+							<input class="form-control search" id="search-mailbox" placeholder="Filter by item...">
 						</div>
 					</div>
 					<div class="row">
-						<div class="col-sm-2 zeroPadding">
+						<div class="col-sm-2 div-browser zeroPadding">
 							<table class="table table-bordered table-padding table-striped" id="table-exchange-folders">
 								<thead>
 									<tr>
@@ -334,7 +353,7 @@ if (isset($_SESSION['token'])) {
 										<td>
 											<input type="text" class="form-control search" id="jstree_q" placeholder="Hilight a folder...">
 											<div id="jstree">
-												<ul>
+												<ul id="ul-exchange-folders">													
 													<?php													
 													for ($i = 0; $i < count($parentfolders); $i++) {
 														switch (strtolower($parentfolders[$i]['type'])) {
@@ -365,8 +384,9 @@ if (isset($_SESSION['token'])) {
 											<script>
 											$(function() {
 												$('#jstree').jstree({ 
-													core: {
-													  check_callback: true
+													'core': {
+													  'check_callback': true,
+													  'dblclick_toggle': false
 													},
 													'plugins': [ 'search', 'sort' ]
 												});
@@ -393,16 +413,23 @@ if (isset($_SESSION['token'])) {
 													var mailboxid = data.node.data.mailboxid;
 													var parent = data.node.id;
 													
-													loadMailbox(folderid, mailboxid, parent);
+													loadMailboxItems(folderid, mailboxid, parent);
 												});
 											});
 											</script>
+											<?php
+											if (count($folders['results']) >= 50) {
+												echo '<div class="text-center">';
+												echo '<a class="btn btn-default load-more-link load-more-folders" data-mailboxid="' .  $uid . '" data-offset="' . count($folders['results']) . '" href="' . $_SERVER['REQUEST_URI'] . '#">Load more folders</a>';
+												echo '</div>';
+											}
+											?>
 										</td>
 									</tr>
 								</tbody>
 							</table>
 						</div>
-						<div class="col-sm-10 zeroPadding">
+						<div class="col-sm-10 div-browser-items zeroPadding">
 							<div class="wrapper"><div class="loader hide" id="loader"></div></div>
 							<table class="table table-hover table-bordered table-striped table-border" id="table-exchange-items">
 								<thead>
@@ -422,12 +449,12 @@ if (isset($_SESSION['token'])) {
 								</tbody>
 							</table>
 							<div class="text-center">
-								<a class="btn btn-default hide load-more-link" data-folderid="null" data-mailboxid="<?php echo $uid; ?>" data-offset="<?php echo count($items['results'])+1; ?>" href="<?php echo $_SERVER['REQUEST_URI']; ?>#">Load more messages</a>
+								<a class="btn btn-default hide load-more-link load-more-items" data-folderid="null" data-mailboxid="<?php echo $uid; ?>" data-offset="50" href="<?php echo $_SERVER['REQUEST_URI']; ?>#">Load more messages</a>
 							</div>
 						</div>
 					</div>
 					<?php
-				} else { /* List all mailboxes */
+				} else { /* List mailboxes */
 					?>				
 					<table class="table table-bordered table-padding table-striped">
 						<thead>
@@ -474,6 +501,11 @@ if (isset($_SESSION['token'])) {
 						</tbody>
 					</table>
 					<?php
+					if (count($users['results']) >= 50) {
+						echo '<div class="text-center">';
+						echo '<a class="btn btn-default load-more-link load-more-mailboxes" data-org="' . $oid . '" data-offset="' . count($users['results']) . '" href="' . $_SERVER['REQUEST_URI'] . '#">Load more mailboxes</a>';
+						echo '</div>';
+					}
 				}
 			}
 			?>
@@ -486,30 +518,29 @@ $('#logout').click(function(e) {
 	e.preventDefault();
 	
 	const swalWithBootstrapButtons = Swal.mixin({
-	  confirmButtonClass: 'btn btn-success btn-margin',
-	  cancelButtonClass: 'btn btn-danger',
+	  customClass: {
+		  confirmButton: 'btn btn-success btn-margin',
+		  cancelButton: 'btn btn-danger'
+      },
 	  buttonsStyling: false,
-	})
+	});
 	
 	swalWithBootstrapButtons.fire({
-		type: 'question',
+		icon: 'question',
 		title: 'Logout',
 		text: 'You are about to logout. Are you sure you want to continue?',
 		showCancelButton: true,
-		confirmButtonText: 'Yes',
-		cancelButtonText: 'No',
-	}).then((result) => {
-		if (result.value) {
-			$.post('index.php', {'logout' : true}, function(data) {
-				window.location.replace('index.php');
-			});
+		confirmButtonText: 'Logout',
+		cancelButtonText: 'Cancel',
+	}).then(function(result) {
+		if (result.isConfirmed) {
+			$.redirect('index.php', {'logout' : true}, 'POST');
 		  } else {
 			return;
 		}
 	})
 });
 
-/* Exchange Restore Buttons */
 $('.btn-start-restore').click(function(e) {
     if (typeof $(this).data('jid') !== 'undefined') {
         var jid = $(this).data('jid');
@@ -528,7 +559,7 @@ $('.btn-start-restore').click(function(e) {
 			$('#pit-date').addClass('errorClass');
 			
 			Swal.fire({
-				type: 'info',
+				icon: 'info',
 				title: 'No date selected',
 				text: 'Please select a date first before starting the restore or use the \"explore last backup\" button.'
 			})
@@ -548,15 +579,15 @@ $('.btn-start-restore').click(function(e) {
     $.post('veeam.php', {'action' : 'startrestore', 'json' : json, 'id' : oid}).done(function(data) {
         if (data.match(/([a-zA-Z0-9]{8})-([a-zA-Z0-9]{4})-([a-zA-Z0-9]{4})-([a-zA-Z0-9]{4})-([a-zA-Z0-9]{12})/g)) {
 			Swal.fire({
-				type: 'success',
+				icon: 'success',
 				title: 'Session started',
-				text: 'Restore session has been started and you can now perform restores.'
+				text: 'Restore session has been started and you can now perform restores'
 			}).then(function(e) {
 				window.location.href = 'exchange';
 			});
         } else {
             Swal.fire({
-				type: 'error',
+				icon: 'error',
 				title: 'Error starting restore session',
 				text: '' + data
 			})
@@ -565,32 +596,50 @@ $('.btn-start-restore').click(function(e) {
         }
     });
 });
+<?php
+if (isset($rid)) {
+?>
 $('.btn-stop-restore').click(function(e) {
     var rid = '<?php echo $rid; ?>';
 
 	const swalWithBootstrapButtons = Swal.mixin({
-	  confirmButtonClass: 'btn btn-success btn-margin',
-	  cancelButtonClass: 'btn btn-danger',
+	  customClass: {
+		  confirmButton: 'btn btn-success btn-margin',
+		  cancelButton: 'btn btn-danger'
+      },
 	  buttonsStyling: false,
-	})
+	  focusConfirm: false,
+	});
 	
 	swalWithBootstrapButtons.fire({
-		type: 'question',
+		icon: 'question',
 		title: 'Stop the restore session?',
-		text: 'This will terminate any restore options for the specific point in time.',
+		text: 'This will terminate any restore options for the specific point in time',
 		showCancelButton: true,
 		confirmButtonText: 'Stop',
 		cancelButtonText: 'Cancel',
-	}).then((result) => {
-		if (result.value) {
-			$.post('veeam.php', {'action' : 'stoprestore', 'id' : rid}).done(function(data) {
-				swalWithBootstrapButtons.fire({
-					type: 'success', 
-					title: 'Restore session was stopped',
-					text: 'The restore session was stopped successfully.',
-				}).then(function(e) {
-					window.location.href = 'exchange';
-				});
+	}).then(function(result) {
+		if (result.isConfirmed) {
+			$.post('veeam.php', {'action' : 'stoprestore', 'rid' : rid}).done(function(data) {
+				if (data === 'success') {
+					swalWithBootstrapButtons.fire({
+						icon: 'success', 
+						title: 'Restore session was stopped',
+						text: 'The restore session was stopped successfully',
+					}).then(function(e) {
+						window.location.href = 'exchange';
+					});
+				} else {
+					var response = JSON.parse(data);
+				
+					swalWithBootstrapButtons.fire({
+						icon: 'error', 
+						title: 'Failed to stop restore session',
+						text: '' + response.slice(0, -1),
+					}).then(function(e) {
+						window.location.href = 'exchange';
+					});
+				}
 			});
 		  } else {
 			return;
@@ -598,10 +647,6 @@ $('.btn-stop-restore').click(function(e) {
 	})
 });
 
-<?php
-if (isset($rid)) {
-?>
-/* Dropdown settings for restore buttons */
 $('hide.bs.dropdown').dropdown(function(e) {
     $(e.target).find('>.dropdown-menu:first').slideUp();
 });
@@ -609,13 +654,11 @@ $('show.bs.dropdown').dropdown(function(e) {
     $(e.target).find('>.dropdown-menu:first').slideDown();
 });
 
-/* Select all checkbox */
 $('#chk-all').click(function(e) {
     var table = $(e.target).closest('table');
     $('tr:visible :checkbox', table).prop('checked', this.checked);
 });
 
-/* Item search */
 $('#search-mailbox').keyup(function(e) {
     var searchText = $(this).val().toLowerCase();
     
@@ -633,24 +676,36 @@ $('ul#ul-exchange-users li').click(function(e) {
     $(this).addClass('active');
 });
 
-/* Load more link for e-mail content */
-$('.load-more-link').click(function(e) {
-    var folderid = $(this).data('folderid');
+$('.load-more-folders').click(function(e) {
     var mailboxid = $(this).data('mailboxid');
     var offset = $(this).data('offset');
     
-    loadMessages(mailboxid, folderid, offset);
+	loadMailboxFolders(mailboxid, offset);
+});
+$('.load-more-items').click(function(e) {
+    var folderid = $(this).data('folderid');
+    var mailboxid = $(this).data('mailboxid');
+    var offset = $(this).data('offset');
+	var type = $(this).data('type');
+    
+	loadMessages(mailboxid, folderid, offset);
+});
+$('.load-more-mailboxes').click(function(e) {
+    var offset = $(this).data('offset');
+    var org = $(this).data('org');
+	
+	loadMailboxes(org, offset);
 });
 
-/* Export to MSG file */
 function downloadMsg(itemid, mailboxid, mailsubject) {
     var rid = '<?php echo $rid; ?>';
     var json = '{ "savetoMsg": null }';
 	
 	Swal.fire({
-		type: 'info',
+		icon: 'info',
 		title: 'Download is starting',
-		text: 'Download will start soon.'
+		text: 'Download will start soon',
+		allowOutsideClick: false,
 	})
     
 	$.post('veeam.php', {'action': 'exportmailitem', 'itemid' : itemid, 'mailboxid' : mailboxid, 'rid' : rid, 'json' : json}).done(function(data) {	
@@ -658,7 +713,7 @@ function downloadMsg(itemid, mailboxid, mailsubject) {
 			$.redirect('download.php', {ext : 'msg', file : data, name : mailsubject}, 'POST');
 		} else {
 			Swal.fire({
-				type: 'error',
+				icon: 'error',
 				title: 'Export failed',
 				text: 'Export failed.'
 			})
@@ -667,27 +722,27 @@ function downloadMsg(itemid, mailboxid, mailsubject) {
 	});
 }
 
-/* Export to PST file */
 function downloadPST(itemid, mailboxid, mailsubject, type) {
     var rid = '<?php echo $rid; ?>';
 	
 	Swal.fire({
-		type: 'info',
+		icon: 'info',
 		title: 'Download is starting',
-		text: 'Export in progress and your download will start soon.'
+		text: 'Export in progress and your download will start soon',
+		allowOutsideClick: false,
 	})
 	
-	if (type == 'multiple') { /* Multiple items export */
+	if (type == 'multiple') {
 		var act = 'exportmultiplemailitems';
 		var ids = '';
 		var mailsubject = 'exported-mailitems-' + mailsubject;
 		
-		if ($("input[name='checkbox-mail']:checked").length === 0) { /* Error handling for multiple export button */
+		if ($("input[name='checkbox-mail']:checked").length === 0) {
 			Swal.close();
 			
 			Swal.fire({
-				type: 'error',
-				title: 'Restore failed',
+				icon: 'info',
+				title: 'Unable to restore',
 				text: 'No items have been selected.'
 			})
 			
@@ -707,11 +762,11 @@ function downloadPST(itemid, mailboxid, mailsubject, type) {
 			} \
 		}';
 	} else {
-		if (type == 'single') {	/* Single item export */
+		if (type == 'single') {
 			var act = 'exportmailitem';
-		} else { /* Full mailbox export */
+		} else {
 			var act = 'exportmailbox';
-			var mailsubject = 'mailbox-' + mailsubject; /* mailbox-username */
+			var mailsubject = 'mailbox-' + mailsubject;
 		}
 		
 		var json = '{ \
@@ -721,14 +776,14 @@ function downloadPST(itemid, mailboxid, mailsubject, type) {
 		}';
 	}
 
-	$.post('veeam.php', {'action' : act, 'itemid' : itemid, 'mailboxid' : mailboxid, 'rid' : rid, 'json' : json}).done(function(data) {		
-		if (data && data != '500') {
-			$.redirect('download.php', {ext : 'pst', file : data, name : mailsubject}, 'POST');
-				
+	$.post('veeam.php', {'action' : act, 'itemid' : itemid, 'mailboxid' : mailboxid, 'rid' : rid, 'json' : json}).done(function(data) {
+		if (data && data != 500) {
+			$.redirect('download.php', {'ext' : 'pst', 'file' : data, 'name' : mailsubject}, 'POST');
+			
 			Swal.close();
 		} else {
 			Swal.fire({
-				type: 'error',
+				icon: 'error',
 				title: 'Export failed',
 				text: '' + data
 			})
@@ -738,71 +793,71 @@ function downloadPST(itemid, mailboxid, mailsubject, type) {
 	});
 }
 
-/* Restore to a different location */
 function restoreToDifferent(itemid, mailboxid, type) {
     var rid = '<?php echo $rid; ?>';
 	
-	if (type == 'multiple' && $("input[name='checkbox-mail']:checked").length == 0) { /* Error handling for multiple restore button */
+	if (type == 'multiple' && $("input[name='checkbox-mail']:checked").length == 0) {
 		Swal.fire({
-			type: 'error',
-			title: 'Restore failed',
+			icon: 'info',
+			title: 'Unable to restore',
 			text: 'No items have been selected.'
 		})
 		return;
 	}
 	
 	const swalWithBootstrapButtons = Swal.mixin({
-	  confirmButtonClass: 'btn btn-success',
-	  cancelButtonClass: 'btn btn-danger btn-margin',
+	  customClass: {
+		  confirmButton: 'btn btn-success btn-margin-restore',
+		  cancelButton: 'btn btn-danger'
+      },
 	  buttonsStyling: false,
-	  input: 'text'
-	})
+	  input: 'text',
+	});
 	
 	swalWithBootstrapButtons.fire({
-		title: 'Restore to a different location',
+		title: 'Restore to different location',
 		html: 
 			'<form method="POST">' +
 			'<div class="form-group row">' +
-			'<label for="restore-different-mailbox" class="col-sm-4 col-form-label text-right">Target mailbox:</label>' +
-			'<div class="col-sm-8"><input type="text" class="form-control restoredata" id="restore-different-mailbox" placeholder="user@example.onmicrosoft.com"></input></div>' +
+			'<label for="restore-different-mailbox" class="col-sm-4 text-left">Target mailbox:</label>' +
+			'<div class="col-sm-8"><input type="text" class="form-control restoredata" id="restore-different-mailbox" placeholder="user@example.onmicrosoft.com"></div>' +
 			'</div>' +
 			'<div class="form-group row">' +
-			'<label for="restore-different-server" class="col-sm-4 col-form-label text-right">Target server:</label>' +
-			'<div class="col-sm-8"><input type="text" class="form-control restoredata" id="restore-different-server" placeholder="outlook.office365.com" value="outlook.office365.com"></input></div>' +
+			'<label for="restore-different-server" class="col-sm-4 text-left">Target server:</label>' +
+			'<div class="col-sm-8"><input type="text" class="form-control restoredata" id="restore-different-server" placeholder="outlook.office365.com" value="outlook.office365.com"></div>' +
 			'</div>' +
 			'<div class="form-group row">' +
-			'<label for="restore-different-user" class="col-sm-4 col-form-label text-right">Username:</label>' +
-			'<div class="col-sm-8"><input type="text" class="form-control restoredata" id="restore-different-user" placeholder="user@example.onmicrosoft.com"></input></div>' +
+			'<label for="restore-different-user" class="col-sm-4 text-left">Username:</label>' +
+			'<div class="col-sm-8"><input type="text" class="form-control restoredata" id="restore-different-user" placeholder="user@example.onmicrosoft.com"></div>' +
 			'</div>' +
 			'<div class="form-group row">' +
-			'<label for="restore-different-pass" class="col-sm-4 col-form-label text-right">Password:</label>' +
-			'<div class="col-sm-8"><input type="password" class="form-control restoredata" id="restore-different-pass" placeholder="password"></input></div>' +
+			'<label for="restore-different-pass" class="col-sm-4 text-left">Password:</label>' +
+			'<div class="col-sm-8"><input type="password" class="form-control restoredata" id="restore-different-pass" placeholder="password"></div>' +
 			'</div>' + 
 			'<div class="form-group row">' + 
-			'<label for="restore-different-folder" class="col-sm-4 col-form-label text-right">Folder:</label>' +
-			'<div class="col-sm-8"><input type="text" class="form-control" id="restore-different-folder" placeholder="Custom folder (optional)"></input></div>' +
-			'<br><h6>By default items will be restored in a folder named <em>Restored-via-web-client</em>.</h6>' +
+			'<label for="restore-different-folder" class="col-sm-4 text-left">Folder:</label>' +
+			'<div class="col-sm-8"><input type="text" class="form-control" id="restore-different-folder" placeholder="Custom folder (optional)">' +
+			'<h6 class="text-left">By default items will be restored in a folder named <em>Restored-via-web-client</em>.</h6>' +
+			'</div>' +
 			'</div>' +
 			'</form>',
-		focusConfirm: false,
-		showCancelButton: true,
 		confirmButtonText: 'Restore',
 		cancelButtonText: 'Cancel',
+		allowOutsideClick: false,
+		focusConfirm: false,
 		reverseButtons: true,
+		showCancelButton: true,
 		inputValidator: () => {
-			var elem = document.getElementById('swal2-validation-message');
-			elem.style.setProperty('margin', '10px 0px', '');
-			
 			var restoredata = Object.values(document.getElementsByClassName('restoredata'));
-			var errors = [ 'No target mailbox defined.', 'No target mailbox server defined.', 'No username defined.', 'No password defined.' ];
+			var errors = [ 'No target mailbox defined', 'No target mailbox server defined', 'No username defined', 'No password defined' ];
 			
 			for (var i = 0; i < restoredata.length; i++) {
 				if (!restoredata[i].value)
 					return errors[i];
 			}
 		},
-		onBeforeOpen: function (dom) {
-			swal.getInput().style.display = 'none';
+		willOpen: function (dom) {
+			swalWithBootstrapButtons.getInput().style.display = 'none';
 		},
 		preConfirm: function() {
 		   return new Promise(function(resolve) {
@@ -815,7 +870,7 @@ function restoreToDifferent(itemid, mailboxid, type) {
 			});
 		},
 	}).then(function(result) {
-		if (result.value) {
+		if (result.isConfirmed) {
 			var user = $('#restore-different-user').val();
 			var pass = $('#restore-different-pass').val();
 			var server = $('#restore-different-server').val();
@@ -823,16 +878,17 @@ function restoreToDifferent(itemid, mailboxid, type) {
 			var mailbox = $('#restore-different-mailbox').val();
 			
 			Swal.fire({
-				type: 'info',
-				title: 'Item restore in progress',
-				text: 'Restore in progress...'
+				icon: 'info',
+				title: 'Item restore',
+				text: 'Restore in progress...',
+				allowOutsideClick: false,
 			})
 			
 			if (typeof folder === undefined || !folder) {
 				folder = 'Restored-via-web-client';
 			}
 			
-			if (type == 'multiple') { /* Multiple items restore */
+			if (type == 'multiple') {
 				var act = 'restoremultiplemailitems';
 				var ids = '';
 
@@ -859,9 +915,9 @@ function restoreToDifferent(itemid, mailboxid, type) {
 					} \
 				}';
 			} else {
-				if (type == 'single') { /* Single item restore */
+				if (type == 'single') {
 					var act = 'restoremailitem';
-				} else { /* Full mailbox restore */
+				} else {
 					var act = 'restoremailbox';
 				}
 				
@@ -884,11 +940,41 @@ function restoreToDifferent(itemid, mailboxid, type) {
 			}
 
 			$.post('veeam.php', {'action' : act, 'itemid' : itemid, 'mailboxid' : mailboxid, 'rid' : rid, 'json' : json}).done(function(data) {
-				Swal.fire({
-					type: 'info',
-					title: 'Item restore',
-					text: '' + data
-				})
+				var response = JSON.parse(data);
+				
+				if (response['restoreFailed'] === undefined) {
+					var result = '';
+				
+					if (response['createdItemsCount'] >= '1') {
+						result += response['createdItemsCount'] + ' item(s) successfully created<br>';
+					}
+					
+					if (response['mergedItemsCount'] >= '1') {
+						result += response['mergedItemsCount'] + ' item(s) merged<br>';
+					}
+					
+					if (response['failedItemsCount'] >= '1') {
+						result += response['failedItemsCount'] + ' item(s) failed<br>';
+					}
+					
+					if (response['skippedItemsCount'] >= '1') {
+						result += response['skippedItemsCount'] + ' item(s) skipped';
+					}
+				
+					Swal.fire({
+						icon: 'info',
+						title: 'Item restore',
+						html: '' + result,
+						allowOutsideClick: false,
+					})
+				} else {
+					Swal.fire({
+						icon: 'info',
+						title: 'Item restore',
+						html: 'Restore failed: ' + response['restoreFailed'],
+						allowOutsideClick: false,
+					})
+				}
 			});
 		} else {
 			return;
@@ -896,119 +982,350 @@ function restoreToDifferent(itemid, mailboxid, type) {
 	});
 } 
 
-/* Restore to original location */
 function restoreToOriginal(itemid, mailboxid, type) {
     var rid = '<?php echo $rid; ?>';
-console.log(type);
-	if (type == 'multiple' && $("input[name='checkbox-mail']:checked").length == 0) { /* Error handling for multiple restore button */
+
+	if (type == 'multiple' && $("input[name='checkbox-mail']:checked").length == 0) {
 		Swal.fire({
-			type: 'error',
-			title: 'Restore failed',
+			icon: 'info',
+			title: 'Unable to restore',
 			text: 'No items have been selected.'
 		})
 		return;
 	}
 	
 	const swalWithBootstrapButtons = Swal.mixin({
-	  confirmButtonClass: 'btn btn-success',
-	  cancelButtonClass: 'btn btn-danger btn-margin',
+ 	  title: 'Restore to original location',
+	  allowOutsideClick: false,
 	  buttonsStyling: false,
-	  input: 'text'
-	})
+	  focusConfirm: false,
+	  input: 'text',
+	  reverseButtons: true,
+	  showCancelButton: true,
+	  cancelButtonText: 'Cancel',
+	  confirmButtonText: 'Next',
+	  customClass: {
+		  confirmButton: 'btn btn-success btn-margin-restore',
+		  cancelButton: 'btn btn-danger',
+      }
+	});
 	
 	swalWithBootstrapButtons.fire({
-		title: 'Restore to the original location',
-		html: 
-			'<form method="POST">' +
-			'<div class="form-group row">' +
-			'<label for="restore-original-user" class="col-sm-4 col-form-label text-right">Username:</label>' +
-			'<div class="col-sm-8"><input type="text" class="form-control restoredata" id="restore-original-user" placeholder="user@example.onmicrosoft.com"></input></div>' +
-			'</div>' +
-			'<div class="form-group row">' +
-			'<label for="restore-original-pass" class="col-sm-4 col-form-label text-right">Password:</label>' +
-			'<div class="col-sm-8"><input type="password" class="form-control restoredata" id="restore-original-pass" placeholder="password"></input></div>' +
-			'</div>' +
-			'</form>',
-		focusConfirm: false,
-		showCancelButton: true,
-		confirmButtonText: 'Restore',
-		cancelButtonText: 'Cancel',
-		reverseButtons: true,
-		inputValidator: () => {
-			var elem = document.getElementById('swal2-validation-message');
-			elem.style.setProperty('margin', '10px 0px', '');
-			
-			var restoredata = Object.values(document.getElementsByClassName("restoredata"));
-			var errors = [ 'No username defined.', 'No password defined.' ];
-			
-			for (var i = 0; i < restoredata.length; i++) {
-				if (!restoredata[i].value)
-					return errors[i];
-			}
+		text: 'Select authentication method',
+		input: 'select',
+		inputOptions: {
+		<?php 
+		if ($authtype === 'basic') {
+		?>
+		  'basic' : 'Basic Authentication',
+		  'mfa' : 'Modern Authentication',
+		<?php
+		} else {
+		?>
+		  'mfa' : 'Modern Authentication',
+		  'basic' : 'Basic Authentication',
+		<?php
+		}
+		?>
 		},
-		onBeforeOpen: function (dom) {
-			swal.getInput().style.display = 'none';
-		},
-		preConfirm: function() {
-		   return new Promise(function(resolve) {
-				resolve([
-					$('#restore-original-user').val(),
-					$('#restore-original-pass').val(),
-				 ]);
-			});
-		},
-	}).then(function(result) {
-		if (result.value) {
-			var user = $('#restore-original-user').val();
-			var pass = $('#restore-original-pass').val();
-			
-			Swal.fire({
-				type: 'info',
-				title: 'Item restore in progress',
-				text: 'Restore in progress...'
-			})
+		inputValidator: (value) => {
+			return new Promise((resolve) => {
+				if (value === 'basic') {
+					swalWithBootstrapButtons.fire({
+						html:
+							'<form class="form-horizontal">' +
+							'<div class="form-group margin-left">' +
+							'<label for="restore-original-username" class="col-sm-4 control-label">Username:</label>' +
+							'<div class="col-sm-8">' +
+							'<input type="text" class="form-control restoredata" id="restore-original-username" placeholder="user@example.onmicrosoft.com" autocomplete="off">' +
+							'</div>' +
+							'</div>' +
+							'<div class="form-group">' +
+							'<label for="restore-original-password" class="col-sm-4 control-label">Password:</label>' +
+							'<div class="col-sm-8">' +
+							'<input type="password" class="form-control restoredata" id="restore-original-password" placeholder="password" autocomplete="off">' +
+							'</div>' +
+							'</div>' +
+							'</form>',
+						confirmButtonText: 'Restore',
+						cancelButtonText: 'Cancel',
+						inputValidator: () => {
+							var restoredata = Object.values(document.getElementsByClassName('restoredata'));
+							var errors = [ 'No username defined', 'No password defined' ];
+							
+							for (var i = 0; i < restoredata.length; i++) {
+								if (!restoredata[i].value)
+									return errors[i];
+							}
+						},
+						willOpen: () => {
+							Swal.getInput().style.display = 'none';
+						},
+						preConfirm: function() {
+						   return new Promise(function(resolve) {
+								resolve([
+									$('#restore-original-username').val(),
+									$('#restore-original-password').val(),
+								 ]);
+							});
+						}
+					}).then(function(result) {
+						if (result.isConfirmed) {
+							var user = $('#restore-original-username').val();
+							var pass = $('#restore-original-password').val();
+							
+							Swal.fire({
+								icon: 'info',
+								title: 'Item restore',
+								text: 'Restore in progress...',
+								allowOutsideClick: false,
+							})
 
-			if (type == 'multiple') { /* Multiple items restore */
-				var act = 'restoremultiplemailitems';
-				var ids = '';
-				
-				$("input[name='checkbox-mail']:checked").each(function(e) {
-					ids = ids + '{ "Id": "' + this.value + '" }, ';
-				});
-				
-				var json = '{ "restoretoOriginallocation": \
-					{ "userName": "' + user + '", \
-					  "userPassword": "' + pass + '", \
-					  "items": [ \
-						' + ids + ' \
-					\ ] \
-					} \
-				}';
-			} else {
-				if (type == 'single') { /* Single item restore */
-					var act = 'restoremailitem';
-				} else if (type == 'full') { /* Full mailbox restore */
-					var act = 'restoremailbox';
+							if (type == 'multiple') {
+								var act = 'restoremultiplemailitems';
+								var ids = '';
+								
+								$("input[name='checkbox-mail']:checked").each(function(e) {
+									ids = ids + '{ "Id": "' + this.value + '" }, ';
+								});
+								
+								var json = '{ "restoretoOriginallocation": \
+									{ "userName": "' + user + '", \
+									  "userPassword": "' + pass + '", \
+									  "items": [ \
+										' + ids + ' \
+									\ ] \
+									} \
+								}';
+							} else {
+								if (type == 'single') {
+									var act = 'restoremailitem';
+								} else if (type == 'full') {
+									var act = 'restoremailbox';
+								}
+								
+								var json = '{ "restoretoOriginallocation": \
+									{ "userName": "' + user + '", \
+									  "userPassword": "' + pass + '", \
+									} \
+								}';
+							}
+							
+							$.post('veeam.php', {'action' : act, 'itemid' : itemid, 'mailboxid' : mailboxid, 'rid' : rid, 'json' : json}).done(function(data) {
+								var response = JSON.parse(data);
+								
+								if (response['restoreFailed'] === undefined) {
+									var result = '';
+								
+									if (response['createdItemsCount'] >= '1') {
+										result += response['createdItemsCount'] + ' item(s) successfully created<br>';
+									}
+									
+									if (response['mergedItemsCount'] >= '1') {
+										result += response['mergedItemsCount'] + ' item(s) merged<br>';
+									}
+									
+									if (response['failedItemsCount'] >= '1') {
+										result += response['failedItemsCount'] + ' item(s) failed<br>';
+									}
+									
+									if (response['skippedItemsCount'] >= '1') {
+										result += response['skippedItemsCount'] + ' item(s) skipped';
+									}
+								
+									Swal.fire({
+										icon: 'info',
+										title: 'Item restore',
+										html: '' + result,
+										allowOutsideClick: false,
+									})
+								} else {
+									Swal.fire({
+										icon: 'info',
+										title: 'Item restore',
+										html: 'Restore failed: ' + response['restoreFailed'],
+										allowOutsideClick: false,
+									})
+								}
+							});
+						}
+					});
+				} else {
+					swalWithBootstrapButtons.fire({
+						html: 
+							'<form class="form-horizontal">' +
+							'<div class="form-group margin-left">' +
+							'<label for="restore-original-applicationid" class="col-sm-4 control-label">Application ID:</label>' +
+							'<div class="col-sm-8">' +
+							<?php 
+							if ($authtype === 'basic') {
+							?>
+							'<input type="text" class="form-control restoredata" id="restore-original-applicationid">' +
+							<?php
+							} else {
+							?>
+							'<input type="text" class="form-control restoredata" id="restore-original-applicationid" value="<?php echo $applicationid; ?>">' +
+							<?php
+							}
+							?>
+							'</div>' +
+							'</div>' +
+							'</form>',
+						confirmButtonText: 'Next',
+						cancelButtonText: 'Cancel',
+						inputValidator: () => {
+							var restoredata = Object.values(document.getElementsByClassName('restoredata'));
+							var errors = [ 'No Application ID defined.' ];
+							
+							for (var i = 0; i < restoredata.length; i++) {
+								if (!restoredata[i].value)
+									return errors[i];
+							}
+						},
+						willOpen: () => {
+							Swal.getInput().style.display = 'none';
+						},
+						preConfirm: function() {
+						   return new Promise(function(resolve) {
+								resolve([
+									$('#restore-original-applicationid').val(),
+								 ]);
+							});
+						}
+					}).then(function(result) {
+						if (result.isConfirmed) {
+							var clipboard = new ClipboardJS('#btn-copy');
+							var applicationid = $('#restore-original-applicationid').val();
+							var json = '{ "targetApplicationId" : "' + applicationid + '", }';
+							
+							clipboard.on('success', function(e) {
+							  setTooltip('Copied!');
+							  hideTooltip();
+							});
+							clipboard.on('error', function(e) {
+							  setTooltip('Failed!');
+							  hideTooltip();
+							});
+							
+							Swal.fire({
+								title: 'Restore to original location',
+								text: 'Loading, please wait...',
+							});
+							
+							$.post('veeam.php', {'action' : 'getrestoredevicecode', 'rid' : rid, 'json' : json}).done(function(data) {
+								var response = JSON.parse(data);
+								var usercode = response['userCode'];
+
+								swalWithBootstrapButtons.fire({
+									html: 
+										'<form class="form-horizontal">' +
+										'<div class="form-group text-left margin-left">' +
+										'<span>To continue, open <a href="https://microsoft.com/devicelogin" target="_blank">https://microsoft.com/devicelogin</a> and enter the below code to authenticate.</span><br><br>' +
+										'<div class="row">' +
+										'<div class="col-sm-4"><input type="text" class="form-control" id="restore-original-usercode" value="' + usercode + '" readonly></div>' +
+										'<div class="col-sm-8"><button type="button" class="btn form-check" id="btn-copy" data-clipboard-target="#restore-original-usercode" data-placement="right">Copy to clipboard</button></div><br><br>' +
+										'</div>' + 
+										'</div>' +
+										'</form>',
+									confirmButtonText: 'Restore',
+									cancelButtonText: 'Cancel',
+									willOpen: () => {
+										Swal.getInput().style.display = 'none';
+									},
+								}).then(function(result) {
+									if (result.isConfirmed) {
+										Swal.fire({
+											icon: 'info',
+											title: 'Item restore',
+											text: 'Restore in progress...',
+											allowOutsideClick: false,
+										})
+
+										if (type == 'multiple') {
+											var act = 'restoremultiplemailitems';
+											var ids = '';
+											
+											$("input[name='checkbox-mail']:checked").each(function(e) {
+												ids = ids + '{ "Id": "' + this.value + '" }, ';
+											});
+											
+											var json = '{ "restoretoOriginallocation": \
+												{ "userCode": "' + usercode + '", \
+												  "items": [ \
+													' + ids + ' \
+												\ ] \
+												} \
+											}';
+										} else {
+											if (type == 'single') {
+												var act = 'restoremailitem';
+											} else if (type == 'full') {
+												var act = 'restoremailbox';
+											}
+											
+											var json = '{ "restoretoOriginallocation": \
+												{ "userCode": "' + usercode + '", \
+												} \
+											}';
+										}
+										
+										$.post('veeam.php', {'action' : act, 'itemid' : itemid, 'mailboxid' : mailboxid, 'rid' : rid, 'json' : json}).done(function(data) {
+											var response = JSON.parse(data);
+											
+											if (response['restoreFailed'] === undefined) {
+												var result = '';
+											
+												if (response['createdItemsCount'] >= '1') {
+													result += response['createdItemsCount'] + ' item(s) successfully created<br>';
+												}
+												
+												if (response['mergedItemsCount'] >= '1') {
+													result += response['mergedItemsCount'] + ' item(s) merged<br>';
+												}
+												
+												if (response['failedItemsCount'] >= '1') {
+													result += response['failedItemsCount'] + ' item(s) failed<br>';
+												}
+												
+												if (response['skippedItemsCount'] >= '1') {
+													result += response['skippedItemsCount'] + ' item(s) skipped';
+												}
+											
+												Swal.fire({
+													icon: 'info',
+													title: 'Item restore',
+													html: '' + result,
+													allowOutsideClick: false,
+												})
+											} else {
+												Swal.fire({
+													icon: 'info',
+													title: 'Item restore',
+													html: 'Restore failed: ' + response['restoreFailed'],
+													allowOutsideClick: false,
+												})
+											}
+										});
+										
+									}
+								});
+							});
+						}
+					});
 				}
-				
-				var json = '{ "restoretoOriginallocation": \
-					{ "userName": "' + user + '", \
-					  "userPassword": "' + pass + '", \
-					} \
-				}';
-			}
-			
-			$.post('veeam.php', {'action' : act, 'itemid' : itemid, 'mailboxid' : mailboxid, 'rid' : rid, 'json' : json}).done(function(data) {
-				Swal.fire({
-					type: 'info',
-					title: 'Item restore',
-					text: '' + data
-				})
-			});
-		  } else {
-			return;
+			})
 		}
 	});
+}
+
+function hideTooltip() {
+  setTimeout(function() {
+	  $('#btn-copy').tooltip('hide');
+  }, 1000);
+}
+
+function setTooltip(message) {
+  $('#btn-copy').tooltip('hide').attr('data-original-title', message).tooltip('show');
 }
 
 function disableTree() {
@@ -1020,6 +1337,7 @@ function disableTree() {
     return false;
   });
 }  
+
 function enableTree() {
   $('#jstree li.jstree-node').each(function(e) {
     $('#jstree').jstree('enable_node', this.id)
@@ -1028,7 +1346,6 @@ function enableTree() {
   $('#jstree i.jstree-ocl').off('click.block');
 }
 
-/* Exchange functions */
 function fillTable(response, mailboxid) {
     if (response.results.length !== 0) {
 		for (var i = 0; i < response.results.length; i++) {
@@ -1084,12 +1401,96 @@ function fillTable(response, mailboxid) {
 	}
 }
 
-function loadMailbox(folderid, mailboxid, parent) {
+function loadMailboxes(org, offset) {
+	var rid = '<?php echo $rid; ?>';
+	
+    $.post('veeam.php', {'action' : 'getmailboxes', 'offset' : offset, 'rid' : rid}).done(function(data) {
+        var response = JSON.parse(data);
+
+        if (response.results.length != 0) {
+			for (var i = 0; i < response.results.length; i++) {
+				if ($('#table-exchange-mailboxes').length > 0){
+					$('#table-exchange-mailboxes tbody').append('<tr> \
+						<td><a href="exchange/' + org + '/' + response.results[i].id + '">' + response.results[i].name + '</a></td> \
+						<td>' + response.results[i].email + '</td> \
+						<td class="text-center"> \
+						<div class="btn-group dropdown"> \
+						<button class="btn btn-default dropdown-toggle" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="true">Options <span class="caret"></span></button> \
+						<ul class="dropdown-menu dropdown-menu-right"> \
+						<li class="dropdown-header">Download as</li> \
+						<li><a class="dropdown-link" href="javascript:void(0);" onclick="downloadPST(\'' + response.results[i].name + '\', \'' + response.results[i].id + '\', \'' + response.results[i].name + '\', \'full\')"><i class="fa fa-download"></i> PST file</a></li> \
+						<li class="divider"></li> \
+						<li class="dropdown-header">Restore to</li> \
+						<li><a class="dropdown-link" href="javascript:void(0);" onclick="restoreToOriginal(\'' + response.results[i].name + '\', \'' + response.results[i].id + '\', \'full\')"><i class="fa fa-upload"></i> Original location</a></li> \
+						<li><a class="dropdown-link" href="javascript:void(0);" onclick="restoreToDifferent(\'' + response.results[i].name + '\', \'' + response.results[i].id + '\', \'full\')"><i class="fa fa-upload"></i> Different location</a></li> \
+						</ul> \
+						</div> \
+						</td> \
+						</tr>');
+				}
+				
+				$('#ul-exchange-users').append('<li><a href="exchange/' + org + '/' + response.results[i].id + '">' + response.results[i].name + '</a></li>');
+			}
+			
+			if (response.results.length >= 50) {
+				$('a.load-more-mailboxes').data('offset', offset + 50);
+			} else {
+				$('a.load-more-mailboxes').addClass('hide');
+			}
+		}
+    });
+}
+
+function loadMailboxFolders(mailboxid, offset) {
+	var rid = '<?php echo $rid; ?>';
+	
+    $.post('veeam.php', {'action' : 'getmailboxfolders', 'mailboxid' : mailboxid, 'offset' : offset, 'rid' : rid}).done(function(data) {
+        var response = JSON.parse(data);
+
+        if (response.results.length != 0) {
+			var icon, type;
+			
+			for (var i = 0; i < response.results.length; i++) {
+				type = response.results[i].type;
+				
+				switch (type.toLowerCase()) {
+					case 'appointment':
+						icon = 'far fa-calendar-check';
+						break;
+					case 'contact':
+						icon = 'far fa-address-book';
+						break;
+					case 'journal':
+						icon = 'fa fa-book';
+						break;
+					case 'stickynote':
+						icon = 'far fa-sticky-note';
+						break;
+					case 'task':
+						icon = 'fa fa-tasks';
+						break;
+					default:
+						icon = 'far fa-folder';
+				}
+				
+				$('#jstree').jstree('create_node', '#', {data: {"folderid" : response.results[i].id, "mailboxid" : mailboxid, "jstree" : {"icon" : icon}}, text: response.results[i].name});
+			}
+			
+			if (response.results.length >= 50) {
+				$('a.load-more-folders').data('offset', offset + 50);
+			} else {
+				$('a.load-more-folders').addClass('hide');
+			}
+		}
+    });
+}
+
+function loadMailboxItems(folderid, mailboxid, parent) {
 	var rid = '<?php echo $rid; ?>';
 	
 	disableTree();
 	
-	$.post('veeam.php', {'action' : 'getmailfolders', 'folderid' : folderid, 'mailboxid' : mailboxid, 'rid' : rid}).done(function(data) {
+	$.post('veeam.php', {'action' : 'getmailboxfolders', 'folderid' : folderid, 'mailboxid' : mailboxid, 'offset' : 0, 'limit' : 250, 'rid' : rid}).done(function(data) {
 		var responsefolders = JSON.parse(data);
 		
 		if (parent !== null) {
@@ -1139,18 +1540,19 @@ function loadMailbox(folderid, mailboxid, parent) {
 	
 	$('#table-exchange-items tbody').empty();
 	$('#loader').removeClass('hide');
-	$('a.load-more-link').addClass('hide');
+	$('a.load-more-items').addClass('hide');
 	
     $.post('veeam.php', {'action' : 'getmailitems', 'folderid' : folderid, 'mailboxid' : mailboxid, 'rid' : rid}).done(function(data) {
         var responseitems = JSON.parse(data);
 
-        if (responseitems.results.length != 0) {
+        if (typeof responseitems !== 'undefined' && responseitems.results.length != 0) {
             fillTable(responseitems, mailboxid);
 			
-			if (responseitems.results.length == 30) {
-				$('a.load-more-link').removeClass('hide');
+			if (responseitems.results.length >= 50) {
+				$('a.load-more-items').removeClass('hide');
+				$('a.load-more-items').data('folderid', folderid);
 			} else {
-				$('a.load-more-link').addClass('hide');
+				$('a.load-more-items').addClass('hide');
 			}
 		} else {
 			$('#table-exchange-items tbody').append('<tr><td class="text-center" colspan="6">No items available in this folder.</td></tr>');
@@ -1170,12 +1572,11 @@ function loadMessages(mailboxid, folderid, offset) {
         if (response.results.length != 0) {
             fillTable(response, mailboxid);
 			
-			if (response.results.length == 30) {
-				$('a.load-more-link').removeClass('hide');
-				$('a.load-more-link').data('offset', offset + 30);
-				$('a.load-more-link').data('folderid', folderid);
+			if (response.results.length >= 50) {
+				$('a.load-more-items').removeClass('hide');
+				$('a.load-more-items').data('offset', offset + 50);
 			} else {
-				$('a.load-more-link').addClass('hide');
+				$('a.load-more-items').addClass('hide');
 			}
 		} else {
 			$('#table-exchange-items tbody').append('<tr><td class="text-center" colspan="6">No more items available in this folder.</td></tr>');
@@ -1199,7 +1600,7 @@ function loadMessages(mailboxid, folderid, offset) {
 		?>
 		<script>
 		Swal.fire({
-			type: 'info',
+			icon: 'info',
 			title: 'Session expired',
 			text: 'Your session has expired and requires you to log in again.'
 		}).then(function(e) {

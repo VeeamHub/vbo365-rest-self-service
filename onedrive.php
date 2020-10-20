@@ -10,8 +10,8 @@ if (empty($host) || empty($port) || empty($version)) {
     exit('Please modify the configuration file first and configure the Veeam Backup for Microsoft Office 365 host, port and RESTful API version settings.');
 }
 
-if (!preg_match('/v[3-4]/', $version)) {
-	exit('Invalid API version found. Please modify the configuration file and configure the Veeam Backup for Microsoft Office 365 RESTful API version setting. Only version 3 and 4 are supported.');
+if (!preg_match('/v[3-5]/', $version)) {
+	exit('Invalid API version found. Please modify the configuration file and configure the Veeam Backup for Microsoft Office 365 RESTful API version setting. Only version 3, 4 and 5 are supported.');
 }
 ?>
 <!DOCTYPE html>
@@ -21,7 +21,7 @@ if (!preg_match('/v[3-4]/', $version)) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title><?php echo $title; ?></title>
     <base href="/" />
-    <link rel="shortcut icon" href="images/favicon.ico" />
+    <link rel="shortcut icon" href="favicon.ico" />
     <link rel="stylesheet" type="text/css" href="css/bootstrap.min.css" />
     <link rel="stylesheet" type="text/css" href="css/flatpickr.min.css">
     <link rel="stylesheet" type="text/css" href="css/fontawesome.min.css" />
@@ -30,6 +30,7 @@ if (!preg_match('/v[3-4]/', $version)) {
 	<link rel="stylesheet" type="text/css" href="css/jstree.min.css" />
     <script src="js/jquery.min.js"></script>
     <script src="js/bootstrap.min.js"></script>
+	<script src="js/clipboard.min.js"></script>
     <script src="js/fontawesome.min.js"></script>
     <script src="js/filesize.min.js"></script>
 	<script src="js/flatpickr.js"></script>
@@ -44,11 +45,23 @@ if (isset($_SESSION['token'])) {
 	$veeam = new VBO($host, $port, $version);
     $veeam->setToken($_SESSION['token']);
 	
-    $user = $_SESSION['user'];
+    if (isset($_SESSION['user'])) {
+		$user = $_SESSION['user'];
+	} else {
+		empty($user);
+	}
+	
+	if (isset($_SESSION['authtype'])) {
+		$authtype = $_SESSION['authtype'];
+	}
+
+	if (isset($_SESSION['applicationid'])) {
+		$applicationid = $_SESSION['applicationid'];
+	}
 ?>
 <nav class="navbar navbar-inverse navbar-static-top">
 	<ul class="nav navbar-header">
-	  <li><a class="navbar-brand navbar-logo" href="/"><img src="images/logo.svg" alt="Veeam Backup for Microsoft Office 365" class="logo" /></a></li>
+	  <li><a class="navbar-brand navbar-logo" href="/"><img src="images/logo.svg" alt="Veeam Backup for Microsoft Office 365" class="logo"></a></li>
 	</ul>
 	<ul class="nav navbar-nav" id="nav">
 	  <li><a href="exchange">Exchange</a></li>
@@ -61,7 +74,7 @@ if (isset($_SESSION['token'])) {
 	</ul>
 </nav>
 <div class="container-fluid">
-    <link rel="stylesheet" href="css/onedrive.css" />
+    <link rel="stylesheet" type="text/css" href="css/onedrive.css" />
     <aside id="sidebar">
         <div class="logo-container"><i class="logo fa fa-cloud"></i></div>
         <div class="separator"></div>
@@ -72,7 +85,7 @@ if (isset($_SESSION['token'])) {
 
 			echo '<ul id="ul-onedrive-users">';
 			
-			if ($check === false && strtolower($administrator) == 'yes') {
+			if (strtolower($authtype) != 'mfa' && $check === false && strtolower($administrator) == 'yes') {
 				$oid = $_GET['oid'];
 				$org = $veeam->getOrganizations();
 				$menu = false;
@@ -102,12 +115,12 @@ if (isset($_SESSION['token'])) {
 				$org = $veeam->getOrganizationID($rid);
 				$users = $veeam->getOneDrives($rid);
 
-				if ($users == '500') { /* Restore session has expired or was killed */
+				if ($users === 500) {
 					unset($_SESSION['rid']);
 					?>
 					<script>
 					Swal.fire({
-						type: 'info',
+						icon: 'info',
 						title: 'Restore session expired',
 						text: 'Your restore session has expired.'
 					}).then(function(e) {
@@ -137,15 +150,21 @@ if (isset($_SESSION['token'])) {
 					}
 
 					echo '</ul>';
+					
+					if (count($users['results']) >= 50) {
+						echo '<div class="text-center">';
+						echo '<a class="btn btn-default load-more-link load-more-accounts" data-org="' . $org['id'] . '" data-offset="' . count($users['results']) . '" href="' . $_SERVER['REQUEST_URI'] . '#">Load more accounts</a>';
+						echo '</div>';
+					}
 				}
 			} else {
 			   ?>
 				<script>
 				Swal.fire({
-					type: 'info',
+					icon: 'info',
 					showConfirmButton: false,
 					title: 'Restore session running',
-					text: 'Found another restore session running, please stop the session first if you want to restore OneDrive items.',
+					text: 'Found another restore session running, please stop the session first if you want to restore OneDrive items',
 					<?php
 					if (strcmp($_SESSION['rtype'], 'vesp') === 0) {
 						echo "footer: '<a href=\"/sharepoint\">Go to restore session</a>'";
@@ -169,7 +188,7 @@ if (isset($_SESSION['token'])) {
         <div class="onedrive-container">
 			<?php
 			if (isset($oid) || $menu) {
-				if ($check === false && strtolower($administrator) == 'yes') {
+				if (strtolower($authtype) != 'mfa' && $check === false && strtolower($administrator) == 'yes') {
 					$org = $veeam->getOrganizationByID($oid);
 				}
 			?>
@@ -193,7 +212,6 @@ if (isset($_SESSION['token'])) {
 				</div>
 				<div class="col-sm-10">
 					<button class="btn btn-default btn-secondary btn-start-restore" title="Start Restore" <?php if (isset($_GET['oid'])) { echo 'data-oid="' . $_GET['oid'] . '"'; } ?> data-latest="false">Start Restore</button>
-				
 					<button class="btn btn-default btn-secondary btn-start-restore" title="Explore last backup (<?php echo date('d/m/Y H:i T', strtotime($org['lastBackuptime'])); ?>)" <?php if (isset($_GET['oid'])) { echo 'data-oid="' . $_GET['oid'] . '"'; } ?> data-pit="<?php echo date('Y.m.d H:i', strtotime($org['lastBackuptime'])); ?>" data-latest="true">Explore last backup</button>
 				</div>
 			</div>
@@ -215,7 +233,7 @@ if (isset($_SESSION['token'])) {
 						));
 					}
 					
-					if (count($users['results']) != '0') {
+					if (count($users['results']) != 0) {
 						$repousersarray = array();
 						
 						for ($i = 0; $i < count($repo); $i++) {
@@ -239,9 +257,9 @@ if (isset($_SESSION['token'])) {
 						$usersorted = array_values(array_column($repousersarray , null, 'name'));
 					}
 					
-					if (count($usersorted) != '0') {
+					if (count($usersorted) != 0) {
 					?>
-					<div class="alert alert-info">The following is an overview with all the backed up OneDrive accounts within the organization.</div>
+					<div class="alert alert-info">The following is a limited overview with the backed up OneDrive accounts within the organization. To view the full list, start a restore session.</div>
 					<table class="table table-bordered table-padding table-striped">
 						<thead>
 							<tr>
@@ -274,14 +292,14 @@ if (isset($_SESSION['token'])) {
 					</table>
 					<?php
 					} else {
-						if ($check === false && strtolower($administrator) == 'yes') {
+						if (strtolower($authtype) != 'mfa' && $check === false && strtolower($administrator) == 'yes') {
 							echo '<p>No users found for this organization.</p>';
 						} else {
 							echo '<p>Select a point in time and start the restore.</p>';
 						}
 					}
 				} else {
-					if ($check === false && strtolower($administrator) == 'yes') {
+					if (strtolower($authtype) != 'mfa' && $check === false && strtolower($administrator) == 'yes') {
 						echo '<p>Select an organization to start a restore session.</p>';
 					} else {
 						echo '<p>Select a point in time and start the restore.</p>';
@@ -293,7 +311,7 @@ if (isset($_SESSION['token'])) {
 					$folders = $veeam->getOneDriveTree($rid, $uid);
 					$documents = $veeam->getOneDriveTree($rid, $uid, 'documents');
 					 
-					if ((count($folders['results']) != '0') || (count($documents['results']) != '0')) {
+					if ((count($folders['results']) != 0) || (count($documents['results']) != 0)) {
 					?>
 					<div class="row">
 						<div class="col-sm-2 text-center">
@@ -309,7 +327,7 @@ if (isset($_SESSION['token'])) {
 							</div>
 						</div>
 						<div class="col-sm-10">
-							<input class="form-control search" id="search-onedrive" placeholder="Filter by item..." />
+							<input class="form-control search" id="search-onedrive" placeholder="Filter by item...">
 						</div>
 					</div>
 					<div class="row">
@@ -326,19 +344,19 @@ if (isset($_SESSION['token'])) {
 											<input type="text" class="form-control search" id="jstree_q" placeholder="Search a folder...">
 											<div id="jstree">
 												<ul>													
-													<?php
-													for ($i = 0; $i < count($folders['results']); $i++) {
-														echo '<li data-folderid="'.$folders['results'][$i]['id'].'"  data-jstree=\'{ "opened" : true }\'>'.$folders['results'][$i]['name'].'</li>';
-													}
-													?>													
+												<?php
+												for ($i = 0; $i < count($folders['results']); $i++) {
+													echo '<li data-folderid="'.$folders['results'][$i]['id'].'" data-jstree=\'{ "opened" : true }\'>'.$folders['results'][$i]['name'].'</li>';
+												}
+												?>													
 												</ul>
 											</div>
 											<script>
 											$(function () {
 												$('#jstree').jstree({ 
-													core: {
-													  check_callback: true,
-													  dblclick_toggle: false
+													'core': {
+													  'check_callback': true,
+													  'dblclick_toggle': false
 													},
 													'plugins': [ 'search', 'sort' ]
 												});
@@ -368,6 +386,13 @@ if (isset($_SESSION['token'])) {
 												});
 											});
 											</script>
+											<?php
+											if (count($folders['results']) >= 50) {
+												echo '<div class="text-center">';
+												echo '<a class="btn btn-default load-more-link load-more-folders" data-folderid="null" data-userid="' . $uid . '" data-offset="' . count($folders['results']) . '" href="' . $_SERVER['REQUEST_URI'] . '#">Load more folders</a>';
+												echo '</div>';
+											}
+											?>
 										</td>
 									</tr>
 								</tbody>
@@ -388,7 +413,7 @@ if (isset($_SESSION['token'])) {
 								</thead>
 								<tbody>
 								<?php
-								for ($i = 0; $i < count($folders['results']); $i++) { /* Show folders first if available */
+								for ($i = 0; $i < count($folders['results']); $i++) {
 								?>
 									<tr>
 										<td></td>
@@ -412,7 +437,7 @@ if (isset($_SESSION['token'])) {
 								<?php
 								}
 
-								for ($i = 0; $i < count($documents['results']); $i++) { /* Show documents next if available */
+								for ($i = 0; $i < count($documents['results']); $i++) {
 								?>
 									<tr>
 										<td class="text-center"><input type="checkbox" name="checkbox-onedrive" value="<?php echo $documents['results'][$i]['id']; ?>"></td>
@@ -441,14 +466,12 @@ if (isset($_SESSION['token'])) {
 							</table>
 							<div class="text-center">
 								<?php
-								if (count($documents['results']) == '30') {
-								?>
-									<a class="btn btn-default load-more-link" data-folderid="null" data-userid="<?php echo $uid; ?>" data-offset="<?php echo count($documents['results'])+1; ?>" href="<?php echo $_SERVER['REQUEST_URI']; ?>#">Load more items</a>
-								<?php
+								if (count($documents['results']) >= 50) {
+									echo '<a class="btn btn-default load-more-link load-more-items" data-folderid="null" data-userid="' . $uid . '" data-offset="' . count($documents['results']) . '" href="' . $_SERVER['REQUEST_URI'] . '#">Load more items</a>';
+								} else if (count($folders['results']) >= 50) {
+									echo '<a class="btn btn-default load-more-link load-more-items" data-folderid="null" data-userid="' . $uid . '" data-offset="' . count($folders['results']) . '" href="' . $_SERVER['REQUEST_URI'] . '#">Load more items</a>';
 								} else {
-								?>
-									<a class="btn btn-default hide load-more-link" data-folderid="null" data-userid="<?php echo $uid; ?>" data-offset="<?php echo count($documents['results'])+1; ?>" href="<?php echo $_SERVER['REQUEST_URI']; ?>#">Load more items</a>
-								<?php
+									echo '<a class="btn btn-default hide load-more-link load-more-items" data-folderid="null" data-userid="' . $uid . '" data-offset="0" href="' . $_SERVER['REQUEST_URI'] . '#">Load more items</a>';
 								}
 								?>
 							</div>
@@ -458,9 +481,9 @@ if (isset($_SESSION['token'])) {
 					} else {
 						echo '<p>No items available for this account.</p>';
 					}
-				} else { /* List all accounts */
+				} else { /* List accounts */
 					?>				
-					<table class="table table-bordered table-padding table-striped">
+					<table class="table table-bordered table-padding table-striped" id="table-onedrive-accounts">
 						<thead>
 							<tr>
 								<th>Name</th>
@@ -502,6 +525,11 @@ if (isset($_SESSION['token'])) {
 						</tbody>
 					</table>
 					<?php
+					if (count($users['results']) >= 50) {
+						echo '<div class="text-center">';
+						echo '<a class="btn btn-default load-more-link load-more-accounts" data-org="' . $org['id'] . '" data-offset="' . count($users['results']) . '" href="' . $_SERVER['REQUEST_URI'] . '#">Load more accounts</a>';
+						echo '</div>';
+					}
 				}
 			}
 			?>
@@ -514,30 +542,29 @@ $('#logout').click(function(e) {
 	e.preventDefault();
 	
 	const swalWithBootstrapButtons = Swal.mixin({
-	  confirmButtonClass: 'btn btn-success btn-margin',
-	  cancelButtonClass: 'btn btn-danger',
+	  customClass: {
+		  confirmButton: 'btn btn-success btn-margin',
+		  cancelButton: 'btn btn-danger'
+      },
 	  buttonsStyling: false,
-	})
+	});
 	
 	swalWithBootstrapButtons.fire({
-		type: 'question',
+		icon: 'question',
 		title: 'Logout',
 		text: 'You are about to logout. Are you sure you want to continue?',
 		showCancelButton: true,
-		confirmButtonText: 'Yes',
-		cancelButtonText: 'No',
-	}).then((result) => {
-		if (result.value) {
-			$.post('index.php', {'logout' : true}, function(data) {
-				window.location.replace('index.php');
-			});
+		confirmButtonText: 'Logout',
+		cancelButtonText: 'Cancel',
+	}).then(function(result) {
+		if (result.isConfirmed) {
+			$.redirect('index.php', {'logout' : true}, 'POST');
 		  } else {
 			return;
 		}
 	})
 });
 
-/* Onedrive Restore Buttons */
 $('.btn-start-restore').click(function(e) {
     if (typeof $(this).data('jid') !== 'undefined') {
         var jid = $(this).data('jid');
@@ -556,7 +583,7 @@ $('.btn-start-restore').click(function(e) {
 			$('#pit-date').addClass('errorClass');
 			
 			Swal.fire({
-				type: 'info',
+				icon: 'info',
 				title: 'No date selected',
 				text: 'Please select a date first before starting the restore or use the \"explore last backup\" button.'
 			})
@@ -576,15 +603,15 @@ $('.btn-start-restore').click(function(e) {
     $.post('veeam.php', {'action' : 'startrestore', 'json' : json, 'id' : oid}).done(function(data) {
         if (data.match(/([a-zA-Z0-9]{8})-([a-zA-Z0-9]{4})-([a-zA-Z0-9]{4})-([a-zA-Z0-9]{4})-([a-zA-Z0-9]{12})/g)) {
 			Swal.fire({
-				type: 'success',
+				icon: 'success',
 				title: 'Session started',
-				text: 'Restore session has been started and you can now perform restores.'
+				text: 'Restore session has been started and you can now perform restores'
 			}).then(function(e) {
 				window.location.href = 'onedrive';
 			});
         } else {
 			Swal.fire({
-				type: 'error',
+				icon: 'error',
 				title: 'Error starting restore session',
 				text: '' + data
 			})
@@ -593,32 +620,50 @@ $('.btn-start-restore').click(function(e) {
         }
     });
 });
+<?php
+if (isset($rid)) {
+?>
 $('.btn-stop-restore').click(function(e) {
     var rid = '<?php echo $rid; ?>';
 
     const swalWithBootstrapButtons = Swal.mixin({
-	  confirmButtonClass: 'btn btn-success btn-margin',
-	  cancelButtonClass: 'btn btn-danger',
+	  customClass: {
+		  confirmButton: 'btn btn-success btn-margin',
+		  cancelButton: 'btn btn-danger'
+      },
 	  buttonsStyling: false,
-	})
+	  focusConfirm: false,
+	});
 	
 	swalWithBootstrapButtons.fire({
-		type: 'question',
+		icon: 'question',
 		title: 'Stop the restore session?',
-		text: 'This will terminate any restore options for the specific point in time.',
+		text: 'This will terminate any restore options for the specific point in time',
 		showCancelButton: true,
 		confirmButtonText: 'Stop',
 		cancelButtonText: 'Cancel',
-	}).then((result) => {
-		if (result.value) {
-			$.post('veeam.php', {'action' : 'stoprestore', 'id' : rid}).done(function(data) {
-				swalWithBootstrapButtons.fire({
-					type: 'success', 
-					title: 'Restore session was stopped',
-					text: 'The restore session was stopped successfully.',
-				}).then(function(e) {
-					window.location.href = 'onedrive';
-				});
+	}).then(function(result) {
+		if (result.isConfirmed) {
+			$.post('veeam.php', {'action' : 'stoprestore', 'rid' : rid}).done(function(data) {
+				if (data === 'success') {
+					swalWithBootstrapButtons.fire({
+						icon: 'success', 
+						title: 'Restore session was stopped',
+						text: 'The restore session was stopped successfully',
+					}).then(function(e) {
+						window.location.href = 'onedrive';
+					});
+				} else {
+					var response = JSON.parse(data);
+				
+					swalWithBootstrapButtons.fire({
+						icon: 'error', 
+						title: 'Failed to stop restore session',
+						text: '' + response.slice(0, -1),
+					}).then(function(e) {
+						window.location.href = 'onedrive';
+					});
+				}
 			});
 		  } else {
 			return;
@@ -626,10 +671,6 @@ $('.btn-stop-restore').click(function(e) {
 	})
 });
 
-<?php
-if (isset($rid)) {
-?>
-/* Dropdown settings */
 $('hide.bs.dropdown').dropdown(function(e) {
     $(e.target).find('>.dropdown-menu:first').slideUp();
 });
@@ -637,13 +678,11 @@ $('show.bs.dropdown').dropdown(function(e) {
     $(e.target).find('>.dropdown-menu:first').slideDown();
 });
 
-/* Select all checkbox */
 $('#chk-all').click(function(e) {
     var table = $(e.target).closest('table');
     $('tr:visible :checkbox', table).prop('checked', this.checked);
 });
 
-/* Item search */
 $('#search-onedrive').keyup(function(e) {
     var searchText = $(this).val().toLowerCase();
     
@@ -661,25 +700,37 @@ $('ul#ul-onedrive-users li').click(function(e) {
     $(this).addClass('active');
 });
 
-/* Load more link */
-$('.load-more-link').click(function(e) {
-    var folderid = $(this).data('folderid');
-    var userid = $(this).data('userid');
+$('.load-more-accounts').click(function(e) {
     var offset = $(this).data('offset');
-    var rid = '<?php echo $rid; ?>';
+    var org = $(this).data('org');
+	
+	loadAccounts(offset, org);
+});
+$('.load-more-folders').click(function(e) {
+	var folderid = $(this).data('folderid');
+    var offset = $(this).data('offset');
+	var userid = $(this).data('userid');
+	var node = $('#jstree').jstree('get_selected');
 
-    loadItems(folderid, userid, offset);
+	loadFolders(folderid, offset, node, userid);
+});
+$('.load-more-items').click(function(e) {
+    var folderid = $(this).data('folderid');
+    var offset = $(this).data('offset');
+	var userid = $(this).data('userid');
+    
+    loadItems(userid, folderid, offset);
 });
 
-/* Export to file */
 function downloadFile(filetype, itemid, itemname, userid) {
     var rid = '<?php echo $rid; ?>';
 	var json = '{ "save": { "asZip": "false" } }';
 	
 	Swal.fire({
-		type: 'info',
+		icon: 'info',
 		title: 'Download is starting',
-		text: 'Export in progress and your download will start soon.'
+		text: 'Export in progress and your download will start soon',
+		allowOutsideClick: false,
 	})
 
 	$.post('veeam.php', {'action' : 'exportonedriveitem', 'itemid' : itemid, 'userid' : userid, 'rid' : rid, 'json' : json, 'type' : filetype}).done(function(data) {
@@ -689,7 +740,7 @@ function downloadFile(filetype, itemid, itemname, userid) {
 			Swal.close();
 		} else {
 			Swal.fire({
-				type: 'error',
+				icon: 'error',
 				title: 'Export failed',
 				text: 'Export failed.'
 			})
@@ -698,29 +749,29 @@ function downloadFile(filetype, itemid, itemname, userid) {
 	});
 }
 
-/* Export to ZIP file */
 function downloadZIP(filetype, itemid, itemname, userid, type) {
     var filename = itemname;
     var rid = '<?php echo $rid; ?>';
 
 	Swal.fire({
-		type: 'info',
+		icon: 'info',
 		title: 'Download is starting',
-		text: 'Export in progress and your download will start soon.'
+		text: 'Export in progress and your download will start soon',
+		allowOutsideClick: false,
 	})
 	
-	if (type == 'multiple') { /* Multiple items export */
+	if (type == 'multiple') {
 		var act = 'exportmultipleonedriveitems';
 		var filetype = 'documents';
 		var ids = '';
 		var filename = 'exported-onedriveitems-' + itemname;
 		
-		if ($("input[name='checkbox-onedrive']:checked").length === 0) { /* Error handling for multiple export button */
+		if ($("input[name='checkbox-onedrive']:checked").length === 0) {
 			Swal.close();
 			
 			Swal.fire({
-				type: 'error',
-				title: 'Restore failed',
+				icon: 'info',
+				title: 'Unable to restore',
 				text: 'No items have been selected.'
 			})
 			
@@ -740,24 +791,24 @@ function downloadZIP(filetype, itemid, itemname, userid, type) {
 			} \
 		}';
 	} else {
-		if (type == 'single') {	/* Single item export */
+		if (type == 'single') {
 			var act = 'exportonedriveitem';
-		} else { /* Full OneDrive export */
+		} else {
 			var act = 'exportonedrive';
-			var filename = 'onedrive-' + itemname; /* onedrive-username */
+			var filename = 'onedrive-' + itemname;
 		}
 		
 		var json = '{ "save": { "asZip": "true" } }';
 	}
 
 	$.post('veeam.php', {'action' : act, 'itemid' : itemid, 'userid' : userid, 'rid' : rid, 'json' : json, 'type' : filetype}).done(function(data) {
-		if (data && data != '500') {
+		if (data && data != 500) {
 			$.redirect('download.php', {ext : 'zip', file : data, name : filename}, 'POST');
 			
 			Swal.close();
 		} else {
 			Swal.fire({
-				type: 'error',
+				icon: 'error',
 				title: 'Export failed',
 				text: '' + data
 			})
@@ -767,133 +818,386 @@ function downloadZIP(filetype, itemid, itemname, userid, type) {
 	});
 }
 
-/* Restore to original location */
 function restoreToOriginal(filetype, itemid, userid, type) {
     var rid = '<?php echo $rid; ?>';
 	
-	if (type == 'multiple' && $("input[name='checkbox-onedrive']:checked").length == 0) { /* Error handling for multiple restore button */
+	if (type == 'multiple' && $("input[name='checkbox-onedrive']:checked").length == 0) {
 		Swal.fire({
-			type: 'error',
-			title: 'Restore failed',
+			icon: 'info',
+			title: 'Unable to restore',
 			text: 'No items have been selected.'
 		})
 		return;
 	}
 	
 	const swalWithBootstrapButtons = Swal.mixin({
-	  confirmButtonClass: 'btn btn-success',
-	  cancelButtonClass: 'btn btn-danger btn-margin',
+ 	  title: 'Restore to original location',
+	  allowOutsideClick: false,
 	  buttonsStyling: false,
-	  input: 'text'
-	})
+	  focusConfirm: false,
+	  input: 'text',
+	  reverseButtons: true,
+	  showCancelButton: true,
+	  cancelButtonText: 'Cancel',
+	  confirmButtonText: 'Next',
+	  customClass: {
+		  confirmButton: 'btn btn-success btn-margin-restore',
+		  cancelButton: 'btn btn-danger',
+      }
+	});
 	
 	swalWithBootstrapButtons.fire({
-		title: 'Restore to the original location',
-		html: 
-			'<form method="POST">' +
-			'<div class="form-group row">' +
-			'<div class="alert alert-warning" role="alert">Warning: this will restore the last version of the item.</div>' +
-			'<label for="restore-original-user" class="col-sm-4 col-form-label text-right">Username:</label>' +
-			'<div class="col-sm-8"><input type="text" class="form-control restoredata" id="restore-original-user" placeholder="user@example.onmicrosoft.com"></input></div>' +
-			'</div>' +
-			'<div class="form-group row">' +
-			'<label for="restore-original-pass" class="col-sm-4 col-form-label text-right">Password:</label>' +
-			'<div class="col-sm-8"><input type="password" class="form-control restoredata" id="restore-original-pass" placeholder="password"></input></div>' +
-			'</div>' +
-			'<div class="form-group row">' +
-			'<label for="restore-original-action" class="col-sm-4 col-form-label text-right">If the file exists:</label>' +
-			'<div class="col-sm-8"><select class="form-control restoredata" id="restore-original-action">' +
-			'<option value="keep">Keep original file</option>' +
-			'<option value="overwrite">Overwrite file</option>' +
-			'</select></div>' +
-			'</div>' +
-			'</form>',
-		focusConfirm: false,
-		showCancelButton: true,
-		confirmButtonText: 'Restore',
-		cancelButtonText: 'Cancel',
-		reverseButtons: true,
-		inputValidator: () => {
-			var elem = document.getElementById('swal2-validation-message');
-			elem.style.setProperty('margin', '10px 0px', '');
-			
-			var restoredata = Object.values(document.getElementsByClassName('restoredata'));
-			var errors = [ 'No username defined.', 'No password defined.' ];
-			
-			for (var i = 0; i < restoredata.length; i++) {
-				if (!restoredata[i].value)
-					return errors[i];
-			}
-		},
-		onBeforeOpen: function (dom) {
-			swal.getInput().style.display = 'none';
-		},
-		preConfirm: function() {
-		   return new Promise(function(resolve) {
-				resolve([
-					$('#restore-original-user').val(),
-					$('#restore-original-pass').val(),
-					$('#restore-original-action').val(),
-				 ]);
-			});
-		},
-	}).then(function(result) {
-		if (result.value) {
-			var user = $('#restore-original-user').val();
-			var pass = $('#restore-original-pass').val();
-			var restoreaction = $('#restore-original-action').val();
-			
-			Swal.fire({
-				type: 'info',
-				title: 'Item restore in progress',
-				text: 'Restore in progress...'
-			})
-			
-			if (type == 'multiple') { /* Multiple items restore */
-				var act = 'restoremultipleonedriveitems';
-				var ids = '';
-				
-				$("input[name='checkbox-onedrive']:checked").each(function(e) {
-					ids = ids + '{ "id": "' + this.value + '" }, ';
-				});
-				
-				var json = '{ "restoretoOriginallocation": \
-					{ "userName": "' + user + '", \
-					  "userPassword": "' + pass + '", \
-					  "DocumentVersion" : "last", \
-					  "DocumentAction" : "' + restoreaction + '", \
-					  "Documents": [ \
-						' + ids + ' \
-					  ], \
-					} \
-				}';
-			} else {
-				if (type == 'single') { /* Single item restore */
-					var act = 'restoreonedriveitem';
-				} else if (type == 'full') { /* Full OneDrive restore */
-					var act = 'restoreonedrive';
-				}
-				
-				var json = '{ "restoretoOriginallocation": \
-					{ "userName": "' + user + '", \
-					  "userPassword": "' + pass + '", \
-					  "DocumentVersion" : "last", \
-					  "DocumentAction" : "' + restoreaction + '" \
-					} \
-				}';
-			}
-
-			$.post('veeam.php', {'action' : act, 'itemid' : itemid, 'userid' : userid, 'rid' : rid, 'json' : json, 'type' : filetype}).done(function(data) {
-				Swal.fire({
-					type: 'info',
-					title: 'Item restore',
-					text: '' + data
-				})
-			});
+		text: 'Select authentication method',
+		input: 'select',
+		inputOptions: {
+		<?php 
+		if ($authtype === 'basic') {
+		?>
+		  'basic' : 'Basic Authentication',
+		  'mfa' : 'Modern Authentication',
+		<?php
 		} else {
-			return;
+		?>
+		  'mfa' : 'Modern Authentication',
+		  'basic' : 'Basic Authentication',
+		<?php
+		}
+		?>
+		},
+		inputValidator: (value) => {
+			return new Promise((resolve) => {
+				if (value === 'basic') {
+					swalWithBootstrapButtons.fire({
+						html:
+							'<form class="form-horizontal">' +
+							'<div class="form-group margin-left">' +
+							'<div class="alert alert-warning" role="alert">This will restore the last version of the item.</div>' +
+							'<label for="restore-original-username" class="col-sm-4 control-label">Username:</label>' +
+							'<div class="col-sm-8">' +
+							'<input type="text" class="form-control restoredata" id="restore-original-username" placeholder="user@example.onmicrosoft.com" autocomplete="off">' +
+							'</div>' +
+							'</div>' +
+							'<div class="form-group">' +
+							'<label for="restore-original-password" class="col-sm-4 control-label">Password:</label>' +
+							'<div class="col-sm-8">' +
+							'<input type="password" class="form-control restoredata" id="restore-original-password" placeholder="password" autocomplete="off">' +
+							'</div>' +
+							'</div>' +
+							'<div class="form-group">' +
+							'<label for="restore-original-action" class="col-sm-4 text-right">If the file exists:</label>' +
+							'<div class="col-sm-8">' +
+							'<select class="form-control restoredata" id="restore-original-action">' +
+							'<option value="keep">Keep original file</option>' +
+							'<option value="overwrite">Overwrite file</option>' +
+							'</select>' +
+							'</div>' +
+							'</div>' +
+							'</form>',
+						confirmButtonText: 'Restore',
+						cancelButtonText: 'Cancel',
+						inputValidator: () => {
+							var restoredata = Object.values(document.getElementsByClassName('restoredata'));
+							var errors = [ 'No username defined', 'No password defined' ];
+							
+							for (var i = 0; i < restoredata.length; i++) {
+								if (!restoredata[i].value)
+									return errors[i];
+							}
+						},
+						willOpen: () => {
+							Swal.getInput().style.display = 'none';
+						},
+						preConfirm: function() {
+						   return new Promise(function(resolve) {
+								resolve([
+									$('#restore-original-username').val(),
+									$('#restore-original-password').val(),
+								 ]);
+							});
+						}
+					}).then(function(result) {
+						if (result.isConfirmed) {					
+							var user = $('#restore-original-username').val();
+							var pass = $('#restore-original-password').val();
+							var restoreaction = $('#restore-original-action').val();
+							
+							Swal.fire({
+								icon: 'info',
+								title: 'Item restore',
+								text: 'Restore in progress...',
+								allowOutsideClick: false,
+							})
+							
+							if (type == 'multiple') {
+								var act = 'restoremultipleonedriveitems';
+								var ids = '';
+								
+								$("input[name='checkbox-onedrive']:checked").each(function(e) {
+									ids = ids + '{ "id": "' + this.value + '" }, ';
+								});
+								
+								var json = '{ "restoretoOriginallocation": \
+									{ "userName": "' + user + '", \
+									  "userPassword": "' + pass + '", \
+									  "DocumentVersion" : "last", \
+									  "DocumentAction" : "' + restoreaction + '", \
+									  "Documents": [ \
+										' + ids + ' \
+									  ], \
+									} \
+								}';
+							} else {
+								if (type == 'single') {
+									var act = 'restoreonedriveitem';
+								} else if (type == 'full') {
+									var act = 'restoreonedrive';
+								}
+								
+								var json = '{ "restoretoOriginallocation": \
+									{ "userName": "' + user + '", \
+									  "userPassword": "' + pass + '", \
+									  "DocumentVersion" : "last", \
+									  "DocumentAction" : "' + restoreaction + '" \
+									} \
+								}';
+							}
+
+							$.post('veeam.php', {'action' : act, 'itemid' : itemid, 'userid' : userid, 'rid' : rid, 'json' : json, 'type' : filetype}).done(function(data) {
+								var response = JSON.parse(data);
+								
+								if (response['restoreFailed'] === undefined) {
+									var result = 'Total items restored: ' + response['totalItemsCount'] + '<br><hr>';
+									
+									if (response['restoredItemsCount'] >= '1') {
+										result += response['restoredItemsCount'] + ' item(s) successfully restored<br>';
+									}
+									
+									if (response['failedItemsCount'] >= '1') {
+										result += response['failedItemsCount'] + ' item(s) failed<br>';
+									}
+									
+									if (response['failedRestrictionsCount'] >= '1') {
+										result += response['failedRestrictionsCount'] + ' item(s) failed due to restrictions issues<br>';
+									}
+									
+									if (response['skippedItemsByErrorCount'] >= '1') {
+										result += response['skippedItemsByErrorCount'] + ' item(s) skipped due to an error<br>';
+									}
+									
+									if (response['skippedItemsByNoChangesCount'] >= '1') {
+										result += response['skippedItemsByNoChangesCount'] + ' item(s) skipped (unchanged item)';
+									}
+								
+									Swal.fire({
+										icon: 'info',
+										title: 'Item restore',
+										html: '' + result,
+										allowOutsideClick: false,
+									})
+								} else {
+									Swal.fire({
+										icon: 'info',
+										title: 'Item restore',
+										html: 'Restore failed: ' + response['restoreFailed'],
+										allowOutsideClick: false,
+									})
+								}
+							});
+						}
+					});
+				} else {
+					swalWithBootstrapButtons.fire({
+						html: 
+							'<form class="form-horizontal">' +
+							'<div class="form-group margin-left">' +
+							'<label for="restore-original-applicationid" class="col-sm-4 control-label">Application ID:</label>' +
+							'<div class="col-sm-8">' +
+							<?php 
+							if ($authtype === 'basic') {
+							?>
+							'<input type="text" class="form-control restoredata" id="restore-original-applicationid">' +
+							<?php
+							} else {
+							?>
+							'<input type="text" class="form-control restoredata" id="restore-original-applicationid" value="<?php echo $applicationid; ?>">' +
+							<?php
+							}
+							?>
+							'</div>' +
+							'</div>' +
+							'<div class="form-group">' +
+							'<label for="restore-original-action" class="col-sm-4 text-right">If the file exists:</label>' +
+							'<div class="col-sm-8">' +
+							'<select class="form-control restoredata" id="restore-original-action">' +
+							'<option value="keep">Keep original file</option>' +
+							'<option value="overwrite">Overwrite file</option>' +
+							'</select>' +
+							'</div>' +
+							'</div>' +
+							'</form>',
+						confirmButtonText: 'Next',
+						cancelButtonText: 'Cancel',
+						inputValidator: () => {
+							var restoredata = Object.values(document.getElementsByClassName('restoredata'));
+							var errors = [ 'No Application ID defined.' ];
+							
+							for (var i = 0; i < restoredata.length; i++) {
+								if (!restoredata[i].value)
+									return errors[i];
+							}
+						},
+						willOpen: () => {
+							Swal.getInput().style.display = 'none';
+						},
+						preConfirm: function() {
+						   return new Promise(function(resolve) {
+								resolve([
+									$('#restore-original-applicationid').val(),
+								 ]);
+							});
+						}
+					}).then(function(result) {
+						if (result.isConfirmed) {
+							var clipboard = new ClipboardJS('#btn-copy');
+							var applicationid = $('#restore-original-applicationid').val();
+							var restoreaction = $('#restore-original-action').val();
+							var json = '{ "targetApplicationId" : "' + applicationid + '", }';
+							
+							clipboard.on('success', function(e) {
+							  setTooltip('Copied!');
+							  hideTooltip();
+							});
+							clipboard.on('error', function(e) {
+							  setTooltip('Failed!');
+							  hideTooltip();
+							});
+							
+							Swal.fire({
+								title: 'Restore to original location',
+								text: 'Loading, please wait...',
+							});
+							
+							$.post('veeam.php', {'action' : 'getrestoredevicecode', 'rid' : rid, 'json' : json}).done(function(data) {
+								var response = JSON.parse(data);
+								var usercode = response['userCode'];
+
+								swalWithBootstrapButtons.fire({
+									html: 
+										'<form class="form-horizontal">' +
+										'<div class="form-group text-left margin-left">' +
+										'<span>To continue, open <a href="https://microsoft.com/devicelogin" target="_blank">https://microsoft.com/devicelogin</a> and enter the below code to authenticate.</span><br><br>' +
+										'<div class="row">' +
+										'<div class="col-sm-4"><input type="text" class="form-control" id="restore-original-usercode" value="' + usercode + '" readonly></div>' +
+										'<div class="col-sm-8"><button type="button" class="btn form-check" id="btn-copy" data-clipboard-target="#restore-original-usercode" data-placement="right">Copy to clipboard</button></div><br><br>' +
+										'</div>' + 
+										'</div>' +
+										'</form>',
+									confirmButtonText: 'Restore',
+									cancelButtonText: 'Cancel',
+									willOpen: () => {
+										Swal.getInput().style.display = 'none';
+									},
+								}).then(function(result) {
+									if (result.isConfirmed) {										
+										Swal.fire({
+											icon: 'info',
+											title: 'Item restore',
+											text: 'Restore in progress...',
+											allowOutsideClick: false,
+										})
+										
+										if (type == 'multiple') {
+											var act = 'restoremultipleonedriveitems';
+											var ids = '';
+											
+											$("input[name='checkbox-onedrive']:checked").each(function(e) {
+												ids = ids + '{ "id": "' + this.value + '" }, ';
+											});
+											
+											var json = '{ "restoretoOriginallocation": \
+												{ "userCode": "' + usercode + '", \
+												  "DocumentVersion" : "last", \
+												  "DocumentAction" : "' + restoreaction + '", \
+												  "Documents": [ \
+													' + ids + ' \
+												  ], \
+												} \
+											}';
+										} else {
+											if (type == 'single') {
+												var act = 'restoreonedriveitem';
+											} else if (type == 'full') {
+												var act = 'restoreonedrive';
+											}
+											
+											var json = '{ "restoretoOriginallocation": \
+												{ "userCode": "' + usercode + '", \
+												  "DocumentVersion" : "last", \
+												  "DocumentAction" : "' + restoreaction + '" \
+												} \
+											}';
+										}
+
+										$.post('veeam.php', {'action' : act, 'itemid' : itemid, 'userid' : userid, 'rid' : rid, 'json' : json, 'type' : filetype}).done(function(data) {						
+											var response = JSON.parse(data);
+											
+											if (response['restoreFailed'] === undefined) {
+												var result = 'Total items restored: ' + response['totalItemsCount'] + '<br><hr>';
+												
+												if (response['restoredItemsCount'] >= '1') {
+													result += response['restoredItemsCount'] + ' item(s) successfully restored<br>';
+												}
+												
+												if (response['failedItemsCount'] >= '1') {
+													result += response['failedItemsCount'] + ' item(s) failed<br>';
+												}
+												
+												if (response['failedRestrictionsCount'] >= '1') {
+													result += response['failedRestrictionsCount'] + ' item(s) failed due to restrictions issues<br>';
+												}
+												
+												if (response['skippedItemsByErrorCount'] >= '1') {
+													result += response['skippedItemsByErrorCount'] + ' item(s) skipped due to an error<br>';
+												}
+												
+												if (response['skippedItemsByNoChangesCount'] >= '1') {
+													result += response['skippedItemsByNoChangesCount'] + ' item(s) skipped (unchanged item)';
+												}
+											
+												Swal.fire({
+													icon: 'info',
+													title: 'Item restore',
+													html: '' + result,
+													allowOutsideClick: false,
+												})
+											} else {
+												Swal.fire({
+													icon: 'info',
+													title: 'Item restore',
+													html: 'Restore failed: ' + response['restoreFailed'],
+													allowOutsideClick: false,
+												})
+											}
+										});
+									}
+								});
+							});
+						}
+					});
+				}
+			})
 		}
 	});
+}
+
+function hideTooltip() {
+	setTimeout(function() {
+	  $('#btn-copy').tooltip('hide');
+  }, 1000);
+}
+
+function setTooltip(message) {
+  $('#btn-copy').tooltip('hide').attr('data-original-title', message).tooltip('show');
 }
 
 function disableTree() {
@@ -904,7 +1208,8 @@ function disableTree() {
   $('#jstree i.jstree-ocl').off('click.block').on('click.block', function(e) {
     return false;
   });
-}  
+}
+
 function enableTree() {
   $('#jstree li.jstree-node').each(function(e) {
     $('#jstree').jstree('enable_node', this.id)
@@ -913,7 +1218,6 @@ function enableTree() {
   $('#jstree i.jstree-ocl').off('click.block');
 }
 
-/* OneDrive functions */
 function fillTableDocuments(response, userid) {
     if (response.results.length !== 0) {
         for (var i = 0; i < response.results.length; i++) {
@@ -969,6 +1273,71 @@ function fillTableFolders(response, folderid, userid) {
     }
 }
 
+function loadAccounts(offset, org) {
+	var rid = '<?php echo $rid; ?>';
+	
+    $.post('veeam.php', {'action' : 'getonedriveaccounts', 'offset' : offset, 'rid' : rid}).done(function(data) {
+        var response = JSON.parse(data);
+
+        if (response.results.length != 0) {
+			for (var i = 0; i < response.results.length; i++) {
+				if ($('#table-onedrive-accounts').length > 0){
+					$('#table-onedrive-accounts tbody').append('<tr> \
+						<td><a href="onedrive/' + org + '/' + response.results[i].id + '">' + response.results[i].name + '</a></td> \
+						<td class="text-center"> \
+						<div class="btn-group dropdown"> \
+						<button class="btn btn-default dropdown-toggle" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="true">Options <span class="caret"></span></button> \
+						<ul class="dropdown-menu dropdown-menu-right"> \
+						<li class="dropdown-header">Download as</li> \
+						<li><a class="dropdown-link" href="javascript:void(0);" onclick="downloadZIP(\'documents\', \'' + response.results[i].name + '\', \'' + response.results[i].name + '\', \'' + response.results[i].id + '\', \'full\')"><i class="fa fa-download"></i> ZIP file</a></li> \
+						<li class="divider"></li> \
+						<li class="dropdown-header">Restore to</li> \
+						<li><a class="dropdown-link" href="javascript:void(0);" onclick="restoreToOriginal(\'documents\', \'' + response.results[i].name + '\', \'' + response.results[i].id + '\', \'full\')"><i class="fa fa-upload"></i> Original location</a></li> \
+						</ul> \
+						</div> \
+						</td> \
+						</tr>');
+				}
+				
+				$('#ul-onedrive-users').append('<li><a href="onedrive/' + org + '/' + response.results[i].id + '">' + response.results[i].name + '</a></li>');
+			}
+			
+			if (response.results.length >= 50) {
+				$('a.load-more-accounts').data('offset', offset + 50);
+			} else {
+				$('a.load-more-accounts').addClass('hide');
+			}
+		}
+    });
+}
+
+function loadFolders(folderid, offset, node, userid) {
+	var rid = '<?php echo $rid; ?>';
+
+    $.post('veeam.php', {'action' : 'getonedrivefolders', 'folderid' : folderid, 'userid' : userid, 'offset' : offset, 'rid' : rid}).done(function(data) {
+        var response = JSON.parse(data);
+
+        if (response.results.length != 0) {
+			if (node.length === 0) {
+				node = '#';
+			}
+			
+			for (var i = 0; i < response.results.length; i++) {
+				$('#jstree').jstree('create_node', node, {data: {"folderid" : response.results[i].id, "jstree" : {"opened" : true}}, text: response.results[i].name});
+			}
+			
+			fillTableFolders(response, folderid, userid);
+			
+			if (response.results.length >= 150) {
+				$('a.load-more-folders').removeClass('hide');
+				$('a.load-more-folders').data('offset', offset + 50);
+			} else {
+				$('a.load-more-folders').addClass('hide');
+			}
+		}
+    });
+}
+
 function loadFolderItems(folderid, parent) {
 	if (arguments.length == 1) {
 		parent = null;
@@ -982,7 +1351,7 @@ function loadFolderItems(folderid, parent) {
 	
 	$('#table-onedrive-items tbody').empty();
 	$('#loader').removeClass('hide');
-	$('a.load-more-link').addClass('hide');
+	$('a.load-more-items').addClass('hide');
 	
     $.post('veeam.php', {'action' : 'getonedriveitemsbyfolder', 'folderid' : folderid, 'rid' : rid, 'userid' : userid, 'type' : 'folders'}).done(function(data) {
         responsefolders = JSON.parse(data);
@@ -1068,7 +1437,7 @@ function loadFolderItems(folderid, parent) {
 							
 							if (!childrenFolderidArray.push(responsefolderid)) {
 								$('#jstree').jstree('create_node', treeid, {data: {"folderid" : responsefolderid}, text: responsefoldername});
-								console.log('createB');
+								
 								$('#jstree').on('create_node.jstree', function (e, data) {
 									$('#jstree').jstree('open_node', data.parent);
 								});
@@ -1080,67 +1449,63 @@ function loadFolderItems(folderid, parent) {
 		}
     });
 
+	$.post('veeam.php', {'action' : 'getonedriveitemsbyfolder', 'folderid' : folderid, 'rid' : rid, 'userid' : userid, 'type' : 'documents'}).done(function(data) {
+		responsedocuments = JSON.parse(data);
+	});
+	
 	setTimeout(function(e) {
-		$.post('veeam.php', {'action' : 'getonedriveitemsbyfolder', 'folderid' : folderid, 'rid' : rid, 'userid' : userid, 'type' : 'documents'}).done(function(data) {
-			responsedocuments = JSON.parse(data);
-		});
-	}, 2000);
-
-    setTimeout(function(e) {
 		if ((typeof responsefolders !== 'undefined' && responsefolders.results.length === 0) && (typeof responsedocuments !== 'undefined' && responsedocuments.results.length === 0)) {
 			$('#table-onedrive-items tbody').append('<tr><td class="text-center" colspan="6">No items available in this folder.</td></tr>');
+			$('#loader').addClass('hide');
+			$('a.load-more-items').addClass('hide');
+			enableTree();
+			
+			return;
 		}
 		
-        if (typeof responsefolders !== 'undefined' && responsefolders.results.length !== 0) {
-            fillTableFolders(responsefolders, folderid, userid);
-        }
+		if (typeof responsefolders !== 'undefined' && responsefolders.results.length !== 0) {
+			fillTableFolders(responsefolders, folderid, userid);
+		}
 
-        if (typeof responsedocuments !== 'undefined' && responsedocuments.results.length !== 0) {
-            fillTableDocuments(responsedocuments, userid);
-        }
+		if (typeof responsedocuments !== 'undefined' && responsedocuments.results.length !== 0) {
+			fillTableDocuments(responsedocuments, userid);
+		}
 
-        if ((typeof responsefolders !== 'undefined' && responsefolders.results.length == '30') || (typeof responsedocuments !== 'undefined' && responsedocuments.results.length == '30')) {
-            $('a.load-more-link').removeClass('hide');
-            $('a.load-more-link').data('offset', 30);
-            $('a.load-more-link').data('folderid', folderid);
-        } else {
-            $('a.load-more-link').addClass('hide');
-        }
+		if (typeof responsefolders !== 'undefined' && responsefolders.results.length >= 50) {
+			$('a.load-more-folders').removeClass('hide');
+			$('a.load-more-folders').data('offset', 50);
+			$('a.load-more-folders').data('folderid', folderid);
+		} else if (typeof responsedocuments !== 'undefined' && responsedocuments.results.length >= 50) {
+			$('a.load-more-items').removeClass('hide');
+			$('a.load-more-items').data('offset', 50);
+			$('a.load-more-items').data('folderid', folderid);
+		} else {
+			$('a.load-more-items').addClass('hide');
+		}
 		
 		$('#loader').addClass('hide');
 		enableTree();
-    }, 3000);
+	}, 2000);
 }
 
-function loadItems(folderid, userid, offset) { /* Load additional items in folder */
-    var responsedocuments, responsefolders;
+function loadItems(userid, folderid, offset) {
 	var rid = '<?php echo $rid; ?>';
 
-    $.post('veeam.php', {'action' : 'getonedriveitems', 'folderid' : folderid, 'rid' : rid, 'userid' : userid, 'offset' : offset, 'type' : 'folders'}).done(function(data) {
-        responsefolders = JSON.parse(data);
-    });
-
     $.post('veeam.php', {'action' : 'getonedriveitems', 'folderid' : folderid, 'rid' : rid, 'userid' : userid, 'offset' : offset, 'type' : 'documents'}).done(function(data) {
-        responsedocuments = JSON.parse(data);
-    });
+        var response = JSON.parse(data);
+		
+		if (typeof response !== undefined) {
+			fillTableDocuments(response, userid);
+		}
 
-    setTimeout(function(e) {
-        if (typeof responsefolders !== undefined) {
-            fillTableFolders(responsefolders, folderid, userid);
-        }
-        
-        if (typeof responsedocuments !== undefined) {
-            fillTableDocuments(responsedocuments, userid);
-        }
-
-        if (responsefolders.results.length == '30' || responsedocuments.results.length == '30') {
-            $('a.load-more-link').removeClass('hide');
-            $('a.load-more-link').data('offset', offset + 30);
-            $('a.load-more-link').data('folderid', folderid);
-        } else {
-            $('a.load-more-link').addClass('hide');
-        }
-    }, 2000);
+		if (typeof response !== 'undefined' && response.results.length >= 50) {
+			$('a.load-more-items').removeClass('hide');
+			$('a.load-more-items').data('offset', offset + 50);
+			$('a.load-more-items').data('folderid', folderid);
+		} else {
+			$('a.load-more-items').addClass('hide');
+		}
+    });  
 }
 <?php
 }
@@ -1159,7 +1524,7 @@ function loadItems(folderid, userid, offset) { /* Load additional items in folde
 		?>
 		<script>
 		Swal.fire({
-			type: 'info',
+			icon: 'info',
 			title: 'Session expired',
 			text: 'Your session has expired and requires you to log in again.'
 		}).then(function(e) {

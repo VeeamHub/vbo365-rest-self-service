@@ -10,8 +10,8 @@ if (empty($host) || empty($port) || empty($version)) {
     exit('Please modify the configuration file first and configure the Veeam Backup for Microsoft Office 365 host, port and RESTful API version settings.');
 }
 
-if (!preg_match('/v[3-4]/', $version)) {
-	exit('Invalid API version found. Please modify the configuration file and configure the Veeam Backup for Microsoft Office 365 RESTful API version setting. Only version 3 and 4 are supported.');
+if (!preg_match('/v[3-5]/', $version)) {
+	exit('Invalid API version found. Please modify the configuration file and configure the Veeam Backup for Microsoft Office 365 RESTful API version setting. Only version 3, 4 and 5 are supported.');
 }
 ?>
 <!DOCTYPE html>
@@ -21,7 +21,7 @@ if (!preg_match('/v[3-4]/', $version)) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title><?php echo $title; ?></title>
     <base href="/" />
-    <link rel="shortcut icon" href="images/favicon.ico" />
+    <link rel="shortcut icon" href="favicon.ico" />
     <link rel="stylesheet" type="text/css" href="css/bootstrap.min.css" />
     <link rel="stylesheet" type="text/css" href="css/flatpickr.min.css">
     <link rel="stylesheet" type="text/css" href="css/fontawesome.min.css" />
@@ -30,6 +30,7 @@ if (!preg_match('/v[3-4]/', $version)) {
 	<link rel="stylesheet" type="text/css" href="css/jstree.min.css" />
     <script src="js/jquery.min.js"></script>
     <script src="js/bootstrap.min.js"></script>
+	<script src="js/clipboard.min.js"></script>
     <script src="js/fontawesome.min.js"></script>
     <script src="js/filesize.min.js"></script>
 	<script src="js/flatpickr.js"></script>
@@ -44,11 +45,23 @@ if (isset($_SESSION['token'])) {
 	$veeam = new VBO($host, $port, $version);
     $veeam->setToken($_SESSION['token']);
 	
-    $user = $_SESSION['user'];
+    if (isset($_SESSION['user'])) {
+		$user = $_SESSION['user'];
+	} else {
+		empty($user);
+	}
+	
+	if (isset($_SESSION['authtype'])) {
+		$authtype = $_SESSION['authtype'];
+	}
+	
+	if (isset($_SESSION['applicationid'])) {
+		$applicationid = $_SESSION['applicationid'];
+	}
 ?>
 <nav class="navbar navbar-inverse navbar-static-top">
 	<ul class="nav navbar-header">
-	  <li><a class="navbar-brand navbar-logo" href="/"><img src="images/logo.svg" alt="Veeam Backup for Microsoft Office 365" class="logo" /></a></li>
+	  <li><a class="navbar-brand navbar-logo" href="/"><img src="images/logo.svg" alt="Veeam Backup for Microsoft Office 365" class="logo"></a></li>
 	</ul>
 	<ul class="nav navbar-nav" id="nav">
 	  <li><a href="exchange">Exchange</a></li>
@@ -61,7 +74,7 @@ if (isset($_SESSION['token'])) {
 	</ul>
 </nav>
 <div class="container-fluid">
-    <link rel="stylesheet" href="css/sharepoint.css" />
+    <link rel="stylesheet" type="text/css" href="css/sharepoint.css" />
     <aside id="sidebar">
         <div class="logo-container"><i class="logo fa fa-share-alt"></i></div>
         <div class="separator"></div>
@@ -70,9 +83,9 @@ if (isset($_SESSION['token'])) {
 		if (!isset($_SESSION['rid'])) { /* No restore session is running */
 			$check = filter_var($user, FILTER_VALIDATE_EMAIL);
 
-			echo '<ul id="ul-sharepoint-users">';
+			echo '<ul id="ul-sharepoint-organizations">';
 			
-			if ($check === false && strtolower($administrator) == 'yes') {
+			if (strtolower($authtype) != 'mfa' && $check === false && strtolower($administrator) == 'yes') {
 				$oid = $_GET['oid'];
 				$org = $veeam->getOrganizations();
 				$menu = false;
@@ -135,15 +148,21 @@ if (isset($_SESSION['token'])) {
 					}
 
 					echo '</ul>';
+					
+					if (count($libraries['results']) >= 50 || count($lists['results']) >= 50) {
+						echo '<div class="text-center">';
+						echo '<a class="btn btn-default load-more-link load-more-content" data-org="' . $org['id'] . '" data-offset="' . count($users['results']) . '" data-siteid="' . $sid . '" href="' . $_SERVER['REQUEST_URI'] . '#">Load more</a>';
+						echo '</div>';
+					}
 				} else {
 					$sites = $veeam->getSharePointSites($rid);
-					
-					if ($sites == '500') { /* Restore session has expired or was killed */
+										
+					if ($sites === 500) {
 						unset($_SESSION['rid']);
 						?>
 						<script>
 						Swal.fire({
-							type: 'info',
+							icon: 'info',
 							title: 'Restore session expired',
 							text: 'Your restore session has expired.'
 						}).then(function(e) {
@@ -152,6 +171,10 @@ if (isset($_SESSION['token'])) {
 						</script>
 						<?php
 					} else {
+						echo '<a href="sharepoint/' . $org['id'] . '"><i class="fa fa-home"></i></a>';
+						echo '<ul id="ul-sharepoint-sites">';
+						echo '<div class="separator"></div>';
+					
 						for ($i = 0; $i < count($sites['results']); $i++) {
 							array_push($content, array('name'=> $sites['results'][$i]['name'], 'id' => $sites['results'][$i]['id']));
 						}
@@ -163,16 +186,24 @@ if (isset($_SESSION['token'])) {
 						foreach ($content as $key => $value) {
 							echo '<li><a href="sharepoint/' . $org['id'] . '/' . $value['id'] . '">' . $value['name'] . '</a></li>';
 						}
+						
+						echo '</ul>';
+						
+						if (count($sites['results']) >= 50) {
+							echo '<div class="text-center">';
+							echo '<a class="btn btn-default load-more-link load-more-sites" data-org="' . $org['id'] . '" data-offset="' . count($users['results']) . '" href="' . $_SERVER['REQUEST_URI'] . '#">Load more sites</a>';
+							echo '</div>';
+						}
 					}
 				}
 			} else {
 			   ?>
 				<script>
 				Swal.fire({
-					type: 'info',
+					icon: 'info',
 					showConfirmButton: false,
 					title: 'Restore session running',
-					text: 'Found another restore session running, please stop the session first if you want to restore SharePoint items.',
+					text: 'Found another restore session running, please stop the session first if you want to restore SharePoint items',
 					<?php
 					if (strcmp($_SESSION['rtype'], 'vex') === 0) {
 						echo "footer: '<a href=\"/exchange\">Go to restore session</a>'";
@@ -196,7 +227,7 @@ if (isset($_SESSION['token'])) {
         <div class="sharepoint-container">
 			<?php
 			if (isset($oid) || $menu) {
-				if ($check === false && strtolower($administrator) == 'yes') {
+				if (strtolower($authtype) != 'mfa' && $check === false && strtolower($administrator) == 'yes') {
 					$org = $veeam->getOrganizationByID($oid);
 				}
 			?>
@@ -242,7 +273,7 @@ if (isset($_SESSION['token'])) {
 						}
 					}
 					
-					if (count($sites['results']) != '0') {
+					if (count($sites['results']) != 0) {
 						for ($i = 0; $i < count($sites['results']); $i++) {
 							if (strcmp($sites['results'][$i]['organizationId'], $orgid) === 0) {
 								if (!empty($sites['results'][$i]['backedUpTime'])) {
@@ -263,7 +294,7 @@ if (isset($_SESSION['token'])) {
 						
 					if (isset($orgid) && count($sitesarray) != 0) {
 					?>
-					<div class="alert alert-info">The following is an overview with all the backed up (personal) SharePoint sites within the organization.</div>					
+					<div class="alert alert-info">The following is a limited overview with all the backed up (personal) SharePoint sites within the organization. To view the full list, start a restore session.</div>
 					<table class="table table-bordered table-padding table-striped">
 						<thead>
 							<tr>
@@ -294,14 +325,14 @@ if (isset($_SESSION['token'])) {
 					</table>
 					<?php
 					} else {
-						if ($check === false && strtolower($administrator) == 'yes') {
+						if (strtolower($authtype) != 'mfa' && $check === false && strtolower($administrator) == 'yes') {
 							echo '<p>No SharePoint sites found for this organization.</p>';
 						} else {
 							echo '<p>Select a point in time and start the restore.</p>';
 						}
 					}
 				} else {
-					if ($check === false && strtolower($administrator) == 'yes') {
+					if (strtolower($authtype) != 'mfa' && $check === false && strtolower($administrator) == 'yes') {
 						echo '<p>Select an organization to start a restore session.</p>';
 					} else {
 						echo '<p>Select a point in time and start the restore.</p>';
@@ -312,13 +343,13 @@ if (isset($_SESSION['token'])) {
 					$name = $veeam->getSharePointSiteName($rid, $sid);
 
 					if (isset($cid) && !empty($cid)) {
-						$folders = $veeam->getSharePointTree($rid, $sid, $cid);
+						$folders = $veeam->getSharePointItems($rid, $sid, $cid);
 
-						if (strcmp($type, 'list') === 0) { /* Lists have folders and items */
-							$items = $veeam->getSharePointTree($rid, $sid, $cid, 'Items');
+						if (strcmp($type, 'list') === 0) {
+							$items = $veeam->getSharePointItems($rid, $sid, $cid, 'Items');
 							$list = $veeam->getSharePointListName($rid, $sid, $cid, 'Lists');
-						} else { /* Libraries have folders and documents */
-							$documents = $veeam->getSharePointTree($rid, $sid, $cid, 'Documents');
+						} else {
+							$documents = $veeam->getSharePointItems($rid, $sid, $cid, 'Documents');
 							$list = $veeam->getSharePointListName($rid, $sid, $cid, 'Libraries');
 						}
 						?>
@@ -333,8 +364,7 @@ if (isset($_SESSION['token'])) {
 							}
 							?>
 						</ul>
-						<?php
-						
+						<?php			
 						if (count($folders['results']) === 0 && count($documents['results']) === 0) {
 							echo '<p>No items available.</p>';
 						} else {
@@ -353,7 +383,7 @@ if (isset($_SESSION['token'])) {
 								</div>
 							</div>
 							<div class="col-sm-10">
-								<input class="form-control search" id="search-sharepoint" placeholder="Filter by item..." />
+								<input class="form-control search" id="search-sharepoint" placeholder="Filter by item...">
 							</div>
 						</div>
 						<div class="row">
@@ -385,8 +415,9 @@ if (isset($_SESSION['token'])) {
 												<script>
 												$(function () {
 													$('#jstree').jstree({ 
-														core: {
-														  check_callback: true
+														'core': {
+														  'check_callback': true,
+														  'dblclick_toggle': false
 														},
 														'plugins': [ 'search', 'sort' ]
 													});
@@ -416,6 +447,13 @@ if (isset($_SESSION['token'])) {
 													});
 												});
 												</script>
+												<?php
+												if (count($folders['results']) >= 50) {
+													echo '<div class="text-center">';
+													echo '<a class="btn btn-default load-more-link load-more-folders" data-folderid="' . $cid . '" data-siteid="' . $sid . '" data-offset="' . count($folders['results']) . '" href="' . $_SERVER['REQUEST_URI'] . '#">Load more folders</a>';
+													echo '</div>';
+												}
+												?>
 											</td>
 										</tr>
 									</tbody>
@@ -514,24 +552,26 @@ if (isset($_SESSION['token'])) {
 									?>
 									</tbody>
 								</table>
-								<div class="text-center">
-									<?php
-									if (count($documents['results']) == '30') {
-									?>
-										<a class="btn btn-default load-more-link" data-folderid="null" data-siteid="<?php echo $sid; ?>" data-offset="<?php echo count($documents['results'])+1; ?>" href="<?php echo $_SERVER['REQUEST_URI']; ?>#">Load more items</a>
-									<?php
-									} else {
-									?>
-										<a class="btn btn-default hide load-more-link" data-folderid="null" data-siteid="<?php echo $sid; ?>" data-offset="<?php echo count($documents['results'])+1; ?>" href="<?php echo $_SERVER['REQUEST_URI']; ?>#">Load more items</a>
-									<?php
-									}
-									?>
-								</div>
+								<?php
+								if (count($documents['results']) >= 50) {
+									echo '<div class="text-center">';
+									echo '<a class="btn btn-default load-more-link load-more-items" data-folderid="' . $cid . '" data-siteid="' . $sid . '" data-offset="' . count($documents['results']) . '" data-type="documents" href="' . $_SERVER['REQUEST_URI'] . '#">Load more items</a>';
+									echo '</div>';
+								} else if (count($items['results']) >= 50) {
+									echo '<div class="text-center">';
+									echo '<a class="btn btn-default load-more-link load-more-items" data-folderid="' . $cid . '" data-siteid="' . $sid . '" data-offset="' . count($items['results']) . '" data-type="items" href="' . $_SERVER['REQUEST_URI'] . '#">Load more items</a>';
+									echo '</div>';
+								} else {
+									echo '<div class="text-center">';
+									echo '<a class="btn btn-default hide load-more-link load-more-items" data-folderid="' . $cid . '" data-siteid="' . $sid . '" data-offset="' . count($documents['results']) . '" href="' . $_SERVER['REQUEST_URI'] . '#">Load more items</a>';
+									echo '</div>';
+								}
+								?>
 							</div>
 						</div>
 						<?php
 						}
-					} else { /* Select a library or list */
+					} else {
 						?>
 						<ul class="breadcrumb">
 							<li><a href="sharepoint/<?php echo $org['id']; ?>"><i class="fa fa-home"></i></a></li>
@@ -542,7 +582,7 @@ if (isset($_SESSION['token'])) {
 					}
 				} else { /* List all sites */
 				?>
-				<table class="table table-bordered table-padding table-striped">
+				<table class="table table-bordered table-padding table-striped" id="table-sharepoint-sites">
 					<thead>
 						<tr>
 							<th>Site</th>
@@ -581,6 +621,11 @@ if (isset($_SESSION['token'])) {
 					</tbody>
 				</table>
 				<?php
+				if (count($sites['results']) >= 50) {
+					echo '<div class="text-center">';
+					echo '<a class="btn btn-default load-more-link load-more-sites" data-org="' . $org['id'] . '" data-offset="' . count($users['results']) . '" href="' . $_SERVER['REQUEST_URI'] . '#">Load more sites</a>';
+					echo '</div>';
+				}
 				}
 			}
 			?>
@@ -593,30 +638,29 @@ $('#logout').click(function(e) {
 	e.preventDefault();
 	
 	const swalWithBootstrapButtons = Swal.mixin({
-	  confirmButtonClass: 'btn btn-success btn-margin',
-	  cancelButtonClass: 'btn btn-danger',
+	  customClass: {
+		  confirmButton: 'btn btn-success btn-margin',
+		  cancelButton: 'btn btn-danger'
+      },
 	  buttonsStyling: false,
-	})
+	});
 	
 	swalWithBootstrapButtons.fire({
-		type: 'question',
+		icon: 'question',
 		title: 'Logout',
 		text: 'You are about to logout. Are you sure you want to continue?',
 		showCancelButton: true,
-		confirmButtonText: 'Yes',
-		cancelButtonText: 'No',
-	}).then((result) => {
-		if (result.value) {
-			$.post('index.php', {'logout' : true}, function(data) {
-				window.location.replace('index.php');
-			});
+		confirmButtonText: 'Logout',
+		cancelButtonText: 'Cancel',
+	}).then(function(result) {
+		if (result.isConfirmed) {
+			$.redirect('index.php', {'logout' : true}, 'POST');
 		  } else {
 			return;
 		}
 	})
 });
 
-/* SharePoint Restore Buttons */
 $('.btn-start-restore').click(function(e) {
     if (typeof $(this).data('jid') !== 'undefined') {
         var jid = $(this).data('jid');
@@ -635,7 +679,7 @@ $('.btn-start-restore').click(function(e) {
 			$('#pit-date').addClass('errorClass');
 			
 			Swal.fire({
-				type: 'info',
+				icon: 'info',
 				title: 'No date selected',
 				text: 'Please select a date first before starting the restore or use the \"explore last backup\" button.'
 			})
@@ -653,17 +697,18 @@ $('.btn-start-restore').click(function(e) {
     $(':button').prop('disabled', true);
 
     $.post('veeam.php', {'action' : 'startrestore', 'json' : json, 'id' : oid}).done(function(data) {
-        if (data.match(/([a-zA-Z0-9]{8})-([a-zA-Z0-9]{4})-([a-zA-Z0-9]{4})-([a-zA-Z0-9]{4})-([a-zA-Z0-9]{12})/g)) {
+        console.log(data);
+		if (data.match(/([a-zA-Z0-9]{8})-([a-zA-Z0-9]{4})-([a-zA-Z0-9]{4})-([a-zA-Z0-9]{4})-([a-zA-Z0-9]{12})/g)) {
 			Swal.fire({
-				type: 'success',
+				icon: 'success',
 				title: 'Session started',
-				text: 'Restore session has been started and you can now perform restores.'
+				text: 'Restore session has been started and you can now perform restores'
 			}).then(function(e) {
 				window.location.href = 'sharepoint';
 			});
         } else {
             Swal.fire({
-				type: 'error',
+				icon: 'error',
 				title: 'Error starting restore session',
 				text: '' + data
 			})
@@ -672,32 +717,50 @@ $('.btn-start-restore').click(function(e) {
         }
     });
 });
+<?php
+if (isset($rid)) {
+?>
 $('.btn-stop-restore').click(function(e) {
     var rid = '<?php echo $rid; ?>';
 
     const swalWithBootstrapButtons = Swal.mixin({
-	  confirmButtonClass: 'btn btn-success btn-margin',
-	  cancelButtonClass: 'btn btn-danger',
+	  customClass: {
+		  confirmButton: 'btn btn-success btn-margin',
+		  cancelButton: 'btn btn-danger'
+      },
 	  buttonsStyling: false,
-	})
+	  focusConfirm: false,
+	});
 	
 	swalWithBootstrapButtons.fire({
-		type: 'question',
+		icon: 'question',
 		title: 'Stop the restore session?',
-		text: 'This will terminate any restore options for the specific point in time.',
+		text: 'This will terminate any restore options for the specific point in time',
 		showCancelButton: true,
 		confirmButtonText: 'Stop',
 		cancelButtonText: 'Cancel',
-	}).then((result) => {
-		if (result.value) {
-			$.post('veeam.php', {'action' : 'stoprestore', 'id' : rid}).done(function(data) {
-				swalWithBootstrapButtons.fire({
-					type: 'success', 
-					title: 'Restore session was stopped',
-					text: 'The restore session was stopped successfully.',
-				}).then(function(e) {
-					window.location.href = 'sharepoint';
-				});
+	}).then(function(result) {
+		if (result.isConfirmed) {
+			$.post('veeam.php', {'action' : 'stoprestore', 'rid' : rid}).done(function(data) {
+				if (data === 'success') {
+					swalWithBootstrapButtons.fire({
+						icon: 'success', 
+						title: 'Restore session was stopped',
+						text: 'The restore session was stopped successfully',
+					}).then(function(e) {
+						window.location.href = 'sharepoint';
+					});
+				} else {
+					var response = JSON.parse(data);
+				
+					swalWithBootstrapButtons.fire({
+						icon: 'error', 
+						title: 'Failed to stop restore session',
+						text: '' + response.slice(0, -1),
+					}).then(function(e) {
+						window.location.href = 'sharepoint';
+					});
+				}
 			});
 		  } else {
 			return;
@@ -705,10 +768,6 @@ $('.btn-stop-restore').click(function(e) {
 	})
 });
 
-<?php
-if (isset($rid)) {
-?>
-/* Dropdown settings */
 $('hide.bs.dropdown').dropdown(function(e) {
     $(e.target).find('>.dropdown-menu:first').slideUp();
 });
@@ -716,13 +775,11 @@ $('show.bs.dropdown').dropdown(function(e) {
     $(e.target).find('>.dropdown-menu:first').slideDown();
 });
 
-/* Select all checkbox */
 $('#chk-all').click(function(e) {
     var table = $(e.target).closest('table');
     $('tr:visible :checkbox', table).prop('checked', this.checked);
 });
 
-/* Item search */
 $('#search-sharepoint').keyup(function(e) {
     var searchText = $(this).val().toLowerCase();
     
@@ -740,25 +797,45 @@ $('ul#ul-sharepoint-sites li').click(function(e) {
     $(this).addClass('active');
 });
 
-/* Load more link */
-$('.load-more-link').click(function(e) {
-    var folderid = $(this).data('folderid');
-    var siteid = $(this).data('siteid');
+$('.load-more-folders').click(function(e) {
+	var folderid = $(this).data('folderid');
     var offset = $(this).data('offset');
-    var rid = '<?php echo $rid; ?>';
+	var siteid = $(this).data('siteid');
+	var node = $('#jstree').jstree('get_selected');
 
-    loadItems(folderid, siteid, rid, offset);
+	loadFolders(folderid, node, offset, siteid);
+});
+$('.load-more-content').click(function(e) {
+    var offset = $(this).data('offset');
+	var org = $(this).data('org');
+	var siteid = $(this).data('siteid');
+	
+	loadContent(offset, org, siteid);
+});
+$('.load-more-items').click(function(e) {
+    var folderid = $(this).data('folderid');
+    var offset = $(this).data('offset');
+	var siteid = $(this).data('siteid');
+	var type = $(this).data('type');
+
+    loadItems(folderid, offset, siteid, type);
+});
+$('.load-more-sites').click(function(e) {
+    var offset = $(this).data('offset');
+    var org = $(this).data('org');
+	
+	loadSites(offset, org);
 });
 
-/* Export to file */
 function downloadFile(filetype, itemid, itemname, siteid) {
     var rid = '<?php echo $rid; ?>';
 	var json = '{ "save": { "asZip": "false" } }';
 	
 	Swal.fire({
-		type: 'info',
+		icon: 'info',
 		title: 'Download is starting',
-		text: 'Export in progress and your download will start soon.'
+		text: 'Export in progress and your download will start soon',
+		allowOutsideClick: false,
 	})
 
 	$.post('veeam.php', {'action' : 'exportsharepointitem', 'itemid' : itemid, 'siteid' : siteid, 'rid'	: rid, 'json' : json, 'type' : filetype}).done(function(data) {
@@ -768,7 +845,7 @@ function downloadFile(filetype, itemid, itemname, siteid) {
 			Swal.close();
 		} else {
 			Swal.fire({
-				type: 'error',
+				icon: 'error',
 				title: 'Export failed',
 				text: 'Export failed.'
 			})
@@ -777,28 +854,28 @@ function downloadFile(filetype, itemid, itemname, siteid) {
 	});
 }
 
-/* Export to ZIP file */
 function downloadZIP(filetype, itemid, itemname, siteid, type) {
     var rid = '<?php echo $rid; ?>';
 
 	Swal.fire({
-		type: 'info',
+		icon: 'info',
 		title: 'Download is starting',
-		text: 'Export in progress and your download will start soon.'
+		text: 'Export in progress and your download will start soon',
+		allowOutsideClick: false,
 	})
 	
-	if (type == 'multiple') { /* Multiple items export */
+	if (type == 'multiple') {
 		var act = 'exportmultiplesharepointitems';
 		var filetype = 'documents';
 		var ids = '';
 		var filename = 'exported-sharepointitems';
 		
-		if ($("input[name='checkbox-sharepoint']:checked").length === 0) { /* Error handling for multiple export button */
+		if ($("input[name='checkbox-sharepoint']:checked").length === 0) {
 			Swal.close();
 			
 			Swal.fire({
-				type: 'error',
-				title: 'Restore failed',
+				icon: 'info',
+				title: 'Unable to restore',
 				text: 'No items have been selected.'
 			})
 			
@@ -818,25 +895,25 @@ function downloadZIP(filetype, itemid, itemname, siteid, type) {
 			} \
 		}';
 	} else {
-		if (type == 'single') {	/* Single item export */
+		if (type == 'single') {
 			var act = 'exportsharepointitem';
 			var filename = itemname;
-		} else { /* Full SharePoint export */
+		} else {
 			var act = 'exportsharepoint';
-			var filename = 'sharepoint-' + itemname; /* sharepoint-username */
+			var filename = 'sharepoint-' + itemname;
 		}
 		
 		var json = '{ "save": { "asZip": "true" } }';
 	}
 
 	$.post('veeam.php', {'action' : act, 'itemid' : itemid, 'siteid' : siteid, 'rid' : rid, 'json' : json, 'type' : filetype}).done(function(data) {
-		if (data && data != '500') {
+		if (data && data != 500) {
 			$.redirect('download.php', {ext : 'zip', file : data, name : filename}, 'POST');
 			
 			Swal.close();
 		} else {
 			Swal.fire({
-				type: 'error',
+				icon: 'error',
 				title: 'Export failed',
 				text: '' + data
 			})
@@ -846,184 +923,534 @@ function downloadZIP(filetype, itemid, itemname, siteid, type) {
 	});
 }
 
-/* Restore to original location */
 function restoreToOriginal(filetype, itemid, siteid, type) {
     var rid = '<?php echo $rid; ?>';
 	
-	if (type == 'multiple' && $("input[name='checkbox-sharepoint']:checked").length == 0) { /* Error handling for multiple restore button */
+	if (type == 'multiple' && $("input[name='checkbox-sharepoint']:checked").length == 0) {
 		Swal.fire({
-			type: 'error',
-			title: 'Restore failed',
+			icon: 'info',
+			title: 'Unable to restore',
 			text: 'No items have been selected.'
 		})
 		return;
 	}
 	
 	const swalWithBootstrapButtons = Swal.mixin({
-	  confirmButtonClass: 'btn btn-success',
-	  cancelButtonClass: 'btn btn-danger btn-margin',
+ 	  title: 'Restore to original location',
+	  allowOutsideClick: false,
 	  buttonsStyling: false,
-	  input: 'text'
-	})
+	  focusConfirm: false,
+	  input: 'text',
+	  reverseButtons: true,
+	  showCancelButton: true,
+	  cancelButtonText: 'Cancel',
+	  confirmButtonText: 'Next',
+	  customClass: {
+		  confirmButton: 'btn btn-success btn-margin-restore',
+		  cancelButton: 'btn btn-danger',
+      }
+	});
 	
 	swalWithBootstrapButtons.fire({
-		title: 'Restore to the original location',
-		html: 
-			'<form method="POST">' +
-			'<div class="form-group row">' +
-			'<div class="alert alert-warning" role="alert">Warning: this will restore the last version of the item.</div>' +
-			'<label for="restore-original-user" class="col-sm-4 col-form-label text-right">Username:</label>' +
-			'<div class="col-sm-8"><input type="text" class="form-control restoredata" id="restore-original-user" placeholder="user@example.onmicrosoft.com"></input></div>' +
-			'</div>' +
-			'<div class="form-group row">' +
-			'<label for="restore-original-pass" class="col-sm-4 col-form-label text-right">Password:</label>' +
-			'<div class="col-sm-8"><input type="password" class="form-control restoredata" id="restore-original-pass" placeholder="password"></input></div>' +
-			'</div>' +
-			'<div class="form-group row">' +
-			'<label for="restore-original-action" class="col-sm-4 col-form-label text-right">If the file exists:</label>' +
-			'<div class="col-sm-8"><select class="form-control restoredata" id="restore-original-action">' +
-			'<option value="merge">Merge file</option>' +
-			'<option value="overwrite">Overwrite file</option>' +
-			'</select></div>' +
-			'</div>' +
-			'<div class="form-group row">' +
-			'<label for="restore-original-permissions" class="col-sm-4 col-form-label text-right">Restore permissions:</label>' +
-			'<div class="col-sm-8"><select class="form-control restoredata" id="restore-original-permissions">' +
-			'<option value="true">Yes</option>' +
-			'<option value="false">No</option>' +
-			'</select></div>' +
-			'<input type="hidden" id="restore-original-listname" value="<?php echo $list['name']; ?>"></input>' +
-			'</div>' +
-			'</form>',			
-		focusConfirm: false,
-		showCancelButton: true,
-		confirmButtonText: 'Restore',
-		cancelButtonText: 'Cancel',
-		reverseButtons: true,
-		inputValidator: () => {
-			var elem = document.getElementById('swal2-validation-message');
-			elem.style.setProperty('margin', '10px 0px', '');
-			
-			var restoredata = Object.values(document.getElementsByClassName('restoredata'));
-			var errors = [ 'No username defined.', 'No password defined.' ];
-			
-			for (var i = 0; i < restoredata.length; i++) {
-				if (!restoredata[i].value)
-					return errors[i];
-			}
-		},
-		onBeforeOpen: function (dom) {
-			swal.getInput().style.display = 'none';
-		},
-		preConfirm: function() {
-		   return new Promise(function(resolve) {
-				resolve([
-					$('#restore-original-user').val(),
-					$('#restore-original-pass').val(),
-					$('#restore-original-action').val(),
-					$('#restore-original-listname').val(),
-					$('#restore-original-permissions').val(),
-				 ]);
-			});
-		},
-	}).then(function(result) {
-		if (result.value) {
-			var user = $('#restore-original-user').val();
-			var pass = $('#restore-original-pass').val();
-			var listname = $('#restore-original-listname').val();
-        	var restoreaction = $('#restore-original-action').val();
-		    var restorepermissions = $('#restore-original-permissions').val();
-		
-			Swal.fire({
-				type: 'info',
-				title: 'Item restore in progress',
-				text: 'Restore in progress...'
-			})
-			
-			if (type == 'multiple') { /* Multiple items restore */
-				var act = 'restoremultiplesharepointitems';
-				filetype = 'documents';
-				var ids = '';
-				
-				$("input[name='checkbox-sharepoint']:checked").each(function(e) {
-					ids = ids + '{ "Id": "' + this.value + '" }, ';
-				});
-				
-				var json = '{ "restoreTo": \
-					{ "userName": "' + user + '", \
-					  "userPassword": "' + pass + '", \
-					  "list" : "' + listname + '", \
-					  "restorePermissions" : "' + restorepermissions + '", \
-					  "sendSharedLinksNotification": "true", \
-					  "documentVersion" : "last", \
-					  "documentLastVersionAction" : "' + restoreaction + '", \
-					  "Documents": [ \
-						' + ids + ' \
-					  ] \
-					} \
-				}';
-			} else {
-				if (type == 'single') { /* Single item restore */
-					var act = 'restoresharepointitem';
-					
-					if ((filetype == 'libraries') || (filetype == 'lists')) {
-						var json = '{ "restoreTo": \
-							{ "userName": "' + user + '", \
-							  "userPassword": "' + pass + '", \
-							  "list" : "' + listname + '", \
-							  "restorePermissions" : "' + restorepermissions + '", \
-							  "sendSharedLinksNotification": "true", \
-							  "documentVersion" : "last", \
-							  "documentLastVersionAction" : "' + restoreaction + '", \
-							  "RestoreListViews" : "true", \
-							  "changedItems" : "true", \
-							  "DeletedItems" : "true" \
-							} \
-						}';
-					} else {
-						var json = '{ "restoreTo": \
-							{ "userName": "' + user + '", \
-							  "userPassword": "' + pass + '", \
-							  "list" : "' + listname + '", \
-							  "restorePermissions" : "' + restorepermissions + '", \
-							  "sendSharedLinksNotification": "true", \
-							  "documentVersion" : "last", \
-							  "documentLastVersionAction" : "' + restoreaction + '", \
-							} \
-						}';
-					}
-				} else if (type == 'full') { /* Full SharePoint restore */
-					var act = 'restoresharepoint';
-					
-					var json = '{ "restoreTo": \
-						{ "userName": "' + user + '", \
-						  "userPassword": "' + pass + '", \
-						  "list" : "' + listname + '", \
-						  "restorePermissions" : "' + restorepermissions + '", \
-						  "sendSharedLinksNotification": "true", \
-						  "documentVersion" : "last", \
-						  "documentLastVersionAction" : "' + restoreaction + '", \
-						  "RestoreListViews" : "true", \
-						  "changedItems" : "true", \
-						  "DeletedItems" : "true", \
-						  "RestoreSubsites" : "true", \
-						  "RestoreMasterPages" : "true" \
-						} \
-					}';
-				}
-			}
-
-			$.post('veeam.php', {'action' : act, 'itemid' : itemid, 'siteid' : siteid, 'rid' : rid, 'json' : json, 'type' : filetype}).done(function(data) {
-				Swal.fire({
-					type: 'info',
-					title: 'Item restore',
-					text: '' + data
-				})
-			});
+		text: 'Select authentication method',
+		input: 'select',
+		inputOptions: {
+		<?php 
+		if ($authtype === 'basic') {
+		?>
+		  'basic' : 'Basic Authentication',
+		  'mfa' : 'Modern Authentication',
+		<?php
 		} else {
-			return;
+		?>
+		  'mfa' : 'Modern Authentication',
+		  'basic' : 'Basic Authentication',
+		<?php
+		}
+		?>
+		},
+		inputValidator: (value) => {
+			return new Promise((resolve) => {
+				if (value === 'basic') {
+					swalWithBootstrapButtons.fire({
+						html:
+							'<form class="form-horizontal">' +
+							'<div class="form-group margin-left">' +
+							'<div class="alert alert-warning" role="alert">This will restore the last version of the item.</div>' +
+							'<label for="restore-original-username" class="col-sm-4 control-label">Username:</label>' +
+							'<div class="col-sm-8">' +
+							'<input type="text" class="form-control restoredata" id="restore-original-username" placeholder="user@example.onmicrosoft.com" autocomplete="off">' +
+							'</div>' +
+							'</div>' +
+							'<div class="form-group">' +
+							'<label for="restore-original-password" class="col-sm-4 control-label">Password:</label>' +
+							'<div class="col-sm-8">' +
+							'<input type="password" class="form-control restoredata" id="restore-original-password" placeholder="password" autocomplete="off">' +
+							'</div>' +
+							'</div>' +
+							'<div class="form-group">' +
+							'<label for="restore-original-action" class="col-sm-4 text-right">If the file exists:</label>' +
+							'<div class="col-sm-8">' +
+							'<select class="form-control restoredata" id="restore-original-action">' +
+							'<option value="merge">Merge file</option>' +
+							'<option value="overwrite">Overwrite file</option>' +
+							'</select>' +
+							'</div>' +
+							'</div>' +
+							'<div class="form-group">' +
+							'<label for="restore-original-permissions" class="col-sm-4 text-right">Restore permissions:</label>' +
+							'<div class="col-sm-8">' + 
+							'<select class="form-control restoredata" id="restore-original-permissions">' +
+							'<option value="true">Yes</option>' +
+							'<option value="false">No</option>' +
+							'</select>' + 
+							'</div>' +
+							'<input type="hidden" id="restore-original-listname" value="<?php echo $list['name']; ?>">' +
+							'</div>' +
+							'</form>',
+						confirmButtonText: 'Restore',
+						cancelButtonText: 'Cancel',
+						inputValidator: () => {
+							var restoredata = Object.values(document.getElementsByClassName('restoredata'));
+							var errors = [ 'No username defined', 'No password defined' ];
+							
+							for (var i = 0; i < restoredata.length; i++) {
+								if (!restoredata[i].value)
+									return errors[i];
+							}
+						},
+						willOpen: () => {
+							Swal.getInput().style.display = 'none';
+						},
+						preConfirm: function() {
+						   return new Promise(function(resolve) {
+								resolve([
+									$('#restore-original-username').val(),
+									$('#restore-original-password').val(),
+								 ]);
+							});
+						}
+					}).then(function(result) {
+						if (result.isConfirmed) {					
+							var user = $('#restore-original-username').val();
+							var pass = $('#restore-original-password').val();
+							var listname = $('#restore-original-listname').val();
+							var restoreaction = $('#restore-original-action').val();
+							var restorepermissions = $('#restore-original-permissions').val();
+							
+							Swal.fire({
+								icon: 'info',
+								title: 'Item restore',
+								text: 'Restore in progress...',
+								allowOutsideClick: false,
+							})
+
+							if (type == 'multiple') {
+								var act = 'restoremultiplesharepointitems';
+								filetype = 'documents';
+								var ids = '';
+								
+								$("input[name='checkbox-sharepoint']:checked").each(function(e) {
+									ids = ids + '{ "Id": "' + this.value + '" }, ';
+								});
+								
+								var json = '{ "restoreTo": \
+									{ "UserName": "' + user + '", \
+									  "UserPassword": "' + pass + '", \
+									  "List" : "' + listname + '", \
+									  "RestorePermissions" : "' + restorepermissions + '", \
+									  "SendSharedLinksNotification": "true", \
+									  "DocumentVersion" : "last", \
+									  "DocumentLastVersionAction" : "' + restoreaction + '", \
+									  "Documents": [ \
+										' + ids + ' \
+									  ] \
+									} \
+								}';
+							} else {
+								if (type == 'single') {
+									var act = 'restoresharepointitem';
+									
+									if ((filetype == 'libraries') || (filetype == 'lists')) {
+										var json = '{ "restoreTo": \
+											{ "userName": "' + user + '", \
+											  "userPassword": "' + pass + '", \
+											  "list" : "' + listname + '", \
+											  "restorePermissions" : "' + restorepermissions + '", \
+											  "sendSharedLinksNotification": "true", \
+											  "documentVersion" : "last", \
+											  "documentLastVersionAction" : "' + restoreaction + '", \
+											  "RestoreListViews" : "true", \
+											  "changedItems" : "true", \
+											  "DeletedItems" : "true" \
+											} \
+										}';
+									} else {
+										var json = '{ "restoreTo": \
+											{ "userName": "' + user + '", \
+											  "userPassword": "' + pass + '", \
+											  "list" : "' + listname + '", \
+											  "restorePermissions" : "' + restorepermissions + '", \
+											  "sendSharedLinksNotification": "true", \
+											  "documentVersion" : "last", \
+											  "documentLastVersionAction" : "' + restoreaction + '", \
+											} \
+										}';
+									}
+								} else if (type == 'full') {
+									var act = 'restoresharepoint';
+									
+									var json = '{ "restoreTo": \
+										{ "userName": "' + user + '", \
+										  "userPassword": "' + pass + '", \
+										  "list" : "' + listname + '", \
+										  "restorePermissions" : "' + restorepermissions + '", \
+										  "sendSharedLinksNotification": "true", \
+										  "documentVersion" : "last", \
+										  "documentLastVersionAction" : "' + restoreaction + '", \
+										  "RestoreListViews" : "true", \
+										  "changedItems" : "true", \
+										  "DeletedItems" : "true", \
+										  "RestoreSubsites" : "true", \
+										  "RestoreMasterPages" : "true" \
+										} \
+									}';
+								}
+							}
+
+							$.post('veeam.php', {'action' : act, 'itemid' : itemid, 'siteid' : siteid, 'rid' : rid, 'json' : json, 'type' : filetype}).done(function(data) {
+								var response = JSON.parse(data);
+
+								if (response['restoreFailed'] === undefined) {
+									if (act === 'restoresharepoint') {
+										var result = '';
+										
+										if (response['restoredListsCount'] >= '1') {
+											result += response['restoredListsCount'] + ' list(s) successfully restored<br>';
+										}
+										
+										if (response['restoredWebsCount'] >= '1') {
+											result += response['restoredWebsCount'] + ' web item(s) successfully restored<br>';
+										}
+										
+										if (response['failedRestrictionsCount'] >= '1') {
+											result += response['failedRestrictionsCount'] + ' item(s) failed due to restrictions issues<br>';
+										}
+										
+										if (response['failedListsCount'] >= '1') {
+											result += response['failedListsCount'] + ' list(s) failed to restore<br>';
+										}
+										
+										if (response['failedWebsCount'] >= '1') {
+											result += response['failedWebsCount'] + ' web item(s) failed to restore';
+										}
+									} else {
+										var result = 'Total items restored: ' + response['totalItemsCount'] + '<br><hr>';
+										
+										if (response['restoredItemsCount'] >= '1') {
+											result += response['restoredItemsCount'] + ' item(s) successfully restored<br>';
+										}
+										
+										if (response['failedItemsCount'] >= '1') {
+											result += response['failedItemsCount'] + ' item(s) failed<br>';
+										}
+										
+										if (response['failedRestrictionsCount'] >= '1') {
+											result += response['failedRestrictionsCount'] + ' item(s) failed due to restrictions issues<br>';
+										}
+										
+										if (response['skippedItemsByErrorCount'] >= '1') {
+											result += response['skippedItemsByErrorCount'] + ' item(s) skipped due to an error<br>';
+										}
+										
+										if (response['skippedItemsByNoChangesCount'] >= '1') {
+											result += response['skippedItemsByNoChangesCount'] + ' item(s) skipped (unchanged item)';
+										}
+									}
+									
+									Swal.fire({
+										icon: 'info',
+										title: 'Item restore',
+										html: '' + result,
+										allowOutsideClick: false,
+									})
+								} else {
+									Swal.fire({
+										icon: 'info',
+										title: 'Item restore',
+										html: 'Restore failed: ' + response['restoreFailed'],
+										allowOutsideClick: false,
+									})
+								}
+							});
+						}
+					});
+				} else {
+					swalWithBootstrapButtons.fire({
+						html: 
+							'<form class="form-horizontal">' +
+							'<div class="form-group margin-left">' +
+							'<label for="restore-original-applicationid" class="col-sm-4 control-label">Application ID:</label>' +
+							'<div class="col-sm-8">' +
+							<?php 
+							if ($authtype === 'basic') {
+							?>
+							'<input type="text" class="form-control restoredata" id="restore-original-applicationid">' +
+							<?php
+							} else {
+							?>
+							'<input type="text" class="form-control restoredata" id="restore-original-applicationid" value="<?php echo $applicationid; ?>">' +
+							<?php
+							}
+							?>
+							'</div>' +
+							'</div>' +
+							'<div class="form-group">' +
+							'<label for="restore-original-action" class="col-sm-4 text-right">If the file exists:</label>' +
+							'<div class="col-sm-8">' +
+							'<select class="form-control restoredata" id="restore-original-action">' +
+							'<option value="merge">Merge file</option>' +
+							'<option value="overwrite">Overwrite file</option>' +
+							'</select>' +
+							'</div>' +
+							'</div>' +
+							'<div class="form-group">' +
+							'<label for="restore-original-permissions" class="col-sm-4 text-right">Restore permissions:</label>' +
+							'<div class="col-sm-8">' + 
+							'<select class="form-control restoredata" id="restore-original-permissions">' +
+							'<option value="true">Yes</option>' +
+							'<option value="false">No</option>' +
+							'</select>' + 
+							'</div>' +
+							'<input type="hidden" id="restore-original-listname" value="<?php echo $list['name']; ?>">' +
+							'</div>' +
+							'</form>',
+						confirmButtonText: 'Next',
+						cancelButtonText: 'Cancel',
+						inputValidator: () => {
+							var restoredata = Object.values(document.getElementsByClassName('restoredata'));
+							var errors = [ 'No Application ID defined.' ];
+							
+							for (var i = 0; i < restoredata.length; i++) {
+								if (!restoredata[i].value)
+									return errors[i];
+							}
+						},
+						willOpen: () => {
+							Swal.getInput().style.display = 'none';
+						},
+						preConfirm: function() {
+						   return new Promise(function(resolve) {
+								resolve([
+									$('#restore-original-applicationid').val(),
+								 ]);
+							});
+						}
+					}).then(function(result) {
+						if (result.isConfirmed) {
+							var clipboard = new ClipboardJS('#btn-copy');
+							var applicationid = $('#restore-original-applicationid').val();
+							var listname = $('#restore-original-listname').val();
+							var restoreaction = $('#restore-original-action').val();
+							var restorepermissions = $('#restore-original-permissions').val();
+							var json = '{ "targetApplicationId" : "' + applicationid + '", }';
+							
+							clipboard.on('success', function(e) {
+							  setTooltip('Copied!');
+							  hideTooltip();
+							});
+							clipboard.on('error', function(e) {
+							  setTooltip('Failed!');
+							  hideTooltip();
+							});
+							
+							Swal.fire({
+								title: 'Restore to original location',
+								text: 'Loading, please wait...',
+							});
+							
+							$.post('veeam.php', {'action' : 'getrestoredevicecode', 'rid' : rid, 'json' : json}).done(function(data) {
+								var response = JSON.parse(data);
+								var usercode = response['userCode'];
+
+								swalWithBootstrapButtons.fire({
+									html: 
+										'<form class="form-horizontal">' +
+										'<div class="form-group text-left margin-left">' +
+										'<span>To continue, open <a href="https://microsoft.com/devicelogin" target="_blank">https://microsoft.com/devicelogin</a> and enter the below code to authenticate.</span><br><br>' +
+										'<div class="row">' +
+										'<div class="col-sm-4"><input type="text" class="form-control" id="restore-original-usercode" value="' + usercode + '" readonly></div>' +
+										'<div class="col-sm-8"><button type="button" class="btn form-check" id="btn-copy" data-clipboard-target="#restore-original-usercode" data-placement="right">Copy to clipboard</button></div><br><br>' +
+										'</div>' + 
+										'</div>' +
+										'</form>',
+									confirmButtonText: 'Restore',
+									cancelButtonText: 'Cancel',
+									willOpen: () => {
+										Swal.getInput().style.display = 'none';
+									},
+								}).then(function(result) {
+									if (result.isConfirmed) {										
+										Swal.fire({
+											icon: 'info',
+											title: 'Item restore',
+											text: 'Restore in progress...',
+											allowOutsideClick: false,
+										})
+										
+										if (type == 'multiple') {
+											var act = 'restoremultiplesharepointitems';
+											filetype = 'documents';
+											var ids = '';
+											
+											$("input[name='checkbox-sharepoint']:checked").each(function(e) {
+												ids = ids + '{ "id": "' + this.value + '" }, ';
+											});
+											
+											var json = '{ "restoreTo": \
+												{ "userCode": "' + usercode + '", \
+												  "List" : "' + listname + '", \
+												  "RestorePermissions" : "' + restorepermissions + '", \
+												  "SendSharedLinksNotification": "true", \
+												  "DocumentVersion" : "last", \
+												  "DocumentLastVersionAction" : "' + restoreaction + '", \
+												  "Documents": [ \
+													' + ids + ' \
+												  ] \
+												} \
+											}';
+										} else {
+											if (type == 'single') {
+												var act = 'restoresharepointitem';
+												
+												if ((filetype == 'libraries') || (filetype == 'lists')) {
+													var json = '{ "restoreTo": \
+														{ "userCode": "' + usercode + '", \
+														  "list" : "' + listname + '", \
+														  "restorePermissions" : "' + restorepermissions + '", \
+														  "sendSharedLinksNotification": "true", \
+														  "documentVersion" : "last", \
+														  "documentLastVersionAction" : "' + restoreaction + '", \
+														  "RestoreListViews" : "true", \
+														  "changedItems" : "true", \
+														  "DeletedItems" : "true" \
+														} \
+													}';
+												} else {
+													var json = '{ "restoreTo": \
+														{ "userCode": "' + usercode + '", \
+														  "list" : "' + listname + '", \
+														  "restorePermissions" : "' + restorepermissions + '", \
+														  "sendSharedLinksNotification": "true", \
+														  "documentVersion" : "last", \
+														  "documentLastVersionAction" : "' + restoreaction + '", \
+														} \
+													}';
+												}
+											} else if (type == 'full') {
+												var act = 'restoresharepoint';
+											}
+											
+											var json = '{ "restoreTo": \
+												{ "userCode": "' + usercode + '", \
+												  "list" : "' + listname + '", \
+												  "restorePermissions" : "' + restorepermissions + '", \
+												  "sendSharedLinksNotification": "true", \
+												  "documentVersion" : "last", \
+												  "documentLastVersionAction" : "' + restoreaction + '", \
+												  "RestoreListViews" : "true", \
+												  "changedItems" : "true", \
+												  "DeletedItems" : "true", \
+												  "RestoreSubsites" : "true", \
+												  "RestoreMasterPages" : "true" \
+												} \
+											}';
+										}
+
+										$.post('veeam.php', {'action' : act, 'itemid' : itemid, 'siteid' : siteid, 'rid' : rid, 'json' : json, 'type' : filetype}).done(function(data) {
+											var response = JSON.parse(data);
+											
+											if (response['restoreFailed'] === undefined) {
+												if (act === 'restoresharepoint') {
+													var result = '';
+													
+													if (response['restoredListsCount'] >= '1') {
+														result += response['restoredListsCount'] + ' list(s) successfully restored<br>';
+													}
+													
+													if (response['restoredWebsCount'] >= '1') {
+														result += response['restoredWebsCount'] + ' web item(s) successfully restored<br>';
+													}
+													
+													if (response['failedRestrictionsCount'] >= '1') {
+														result += response['failedRestrictionsCount'] + ' item(s) failed due to restrictions issues<br>';
+													}
+													
+													if (response['failedListsCount'] >= '1') {
+														result += response['failedListsCount'] + ' list(s) failed to restore<br>';
+													}
+													
+													if (response['failedWebsCount'] >= '1') {
+														result += response['failedWebsCount'] + ' web item(s) failed to restore';
+													}
+												} else {
+													var result = 'Total items restored: ' + response['totalItemsCount'] + '<br><hr>';
+													
+													if (response['restoredItemsCount'] >= '1') {
+														result += response['restoredItemsCount'] + ' item(s) successfully restored<br>';
+													}
+													
+													if (response['failedItemsCount'] >= '1') {
+														result += response['failedItemsCount'] + ' item(s) failed<br>';
+													}
+													
+													if (response['failedRestrictionsCount'] >= '1') {
+														result += response['failedRestrictionsCount'] + ' item(s) failed due to restrictions issues<br>';
+													}
+													
+													if (response['skippedItemsByErrorCount'] >= '1') {
+														result += response['skippedItemsByErrorCount'] + ' item(s) skipped due to an error<br>';
+													}
+													
+													if (response['skippedItemsByNoChangesCount'] >= '1') {
+														result += response['skippedItemsByNoChangesCount'] + ' item(s) skipped (unchanged item)';
+													}
+												}
+											
+												Swal.fire({
+													icon: 'info',
+													title: 'Item restore',
+													html: '' + result,
+													allowOutsideClick: false,
+												})
+											} else {
+												Swal.fire({
+													icon: 'info',
+													title: 'Item restore',
+													html: 'Restore failed: ' + response['restoreFailed'],
+													allowOutsideClick: false,
+												})
+											}
+										});
+									}
+								});
+							});
+						}
+					});
+				}
+			})
 		}
 	});
+}
+
+function hideTooltip() {
+  setTimeout(function() {
+	  $('#btn-copy').tooltip('hide');
+  }, 1000);
+}
+
+function setTooltip(message) {
+  $('#btn-copy').tooltip('hide').attr('data-original-title', message).tooltip('show');
 }
 
 function disableTree() {
@@ -1035,6 +1462,7 @@ function disableTree() {
     return false;
   });
 }  
+
 function enableTree() {
   $('#jstree li.jstree-node').each(function(e) {
     $('#jstree').jstree('enable_node', this.id)
@@ -1043,7 +1471,6 @@ function enableTree() {
   $('#jstree i.jstree-ocl').off('click.block');
 }
 
-/* SharePoint functions */
 function fillTableDocuments(response, siteid, type) {
     if (response.results.length !== 0) {
         for (var i = 0; i < response.results.length; i++) {
@@ -1131,7 +1558,7 @@ function loadFolderItems(folderid, parent) {
 	$('#loader').removeClass('hide');
 	$('a.load-more-link').addClass('hide');
 	
-    $.post('veeam.php', {'action' : 'getsharepointitems', 'rid' : rid, 'siteid' : siteid, 'type' : 'Folders', 'folderid' : folderid}).done(function(data) {
+    $.post('veeam.php', {'action' : 'getsharepointitems', 'folderid' : folderid, 'offset' : 0, 'rid' : rid, 'siteid' : siteid, 'type' : 'Folders'}).done(function(data) {
         responsefolders = JSON.parse(data);
 
 		if (parent !== null) {
@@ -1215,7 +1642,7 @@ function loadFolderItems(folderid, parent) {
 							
 							if (!childrenFolderidArray.push(responsefolderid)) {
 								$('#jstree').jstree('create_node', treeid, {data: {"folderid" : responsefolderid}, text: responsefoldername});
-								console.log('createB');
+								
 								$('#jstree').on('create_node.jstree', function (e, data) {
 									$('#jstree').jstree('open_node', data.parent);
 								});
@@ -1227,89 +1654,186 @@ function loadFolderItems(folderid, parent) {
 		}
     });
 
+	
+	<?php
+	if (strcmp($type, 'list') === 0) {
+	?>
+	$.post('veeam.php', {'action' : 'getsharepointitems', 'folderid' : folderid, 'offset' : 0, 'rid' : rid, 'siteid' : siteid, 'type' : 'Items'}).done(function(data) {
+		responsedocuments = JSON.parse(data);
+	});
+	<?php
+	} else {
+	?>
+	$.post('veeam.php', {'action' : 'getsharepointitems', 'folderid' : folderid, 'offset' : 0, 'rid' : rid, 'siteid' : siteid, 'type' : 'Documents'}).done(function(data) {
+		responsedocuments = JSON.parse(data);
+	});
+	<?php
+	}
+	?>
+	
 	setTimeout(function(e) {
-		<?php
-		if (strcmp($type, 'list') === 0) {
-		?>
-		$.post('veeam.php', {'action' : 'getsharepointitems', 'rid' : rid, 'siteid' : siteid, 'type' : 'Items', 'folderid' : folderid}).done(function(data) {
-			responsedocuments = JSON.parse(data);
-		});
-		<?php
-		} else {
-		?>
-		$.post('veeam.php', {'action' : 'getsharepointitems', 'rid' : rid, 'siteid' : siteid, 'type' : 'Documents', 'folderid' : folderid}).done(function(data) {
-			responsedocuments = JSON.parse(data);
-		});
-		<?php
-		}
-		?>
-	}, 2000);
-
-    setTimeout(function(e) {
 		if ((typeof responsefolders !== 'undefined' && responsefolders.results.length === 0) && (typeof responsedocuments !== 'undefined' && responsedocuments.results.length === 0)) {
 			$('#table-sharepoint-items tbody').append('<tr><td class="text-center" colspan="6">No items available in this folder.</td></tr>');
+			$('#loader').addClass('hide');
+			$('a.load-more-items').addClass('hide');
+			enableTree();
+			
+			return;
 		}
 		
-        if (typeof responsefolders !== 'undefined' && responsefolders.results.length !== 0) {
-            fillTableFolders(responsefolders, folderid, siteid);
-        }
+		if (typeof responsefolders !== 'undefined' && responsefolders.results.length !== 0) {
+			fillTableFolders(responsefolders, folderid, siteid);
+		}
 
-        if (typeof responsedocuments !== 'undefined' && responsedocuments.results.length !== 0) {
-            <?php
-            if (strcmp($type, 'list') === 0) {
-            ?>
-            fillTableDocuments(responsedocuments, siteid, 'items');
-            <?php
-            } else {
-            ?>
-            fillTableDocuments(responsedocuments, siteid, 'documents');
-            <?php
-            }
-            ?>
-        }
-
-        if ((typeof responsefolders !== 'undefined' && responsefolders.results.length == '30') || (typeof responsedocuments !== 'undefined' && responsedocuments.results.length == '30')) {
-            $('a.load-more-link').removeClass('hide');
-            $('a.load-more-link').data('offset', 30);
-            $('a.load-more-link').data('folderid', folderid);
-        } else {
-            $('a.load-more-link').addClass('hide');
-        }
+		if (typeof responsedocuments !== 'undefined' && responsedocuments.results.length !== 0) {
+			<?php
+			if (strcmp($type, 'list') === 0) {
+			?>
+			fillTableDocuments(responsedocuments, siteid, 'items');
+			<?php
+			} else {
+			?>
+			fillTableDocuments(responsedocuments, siteid, 'documents');
+			<?php
+			}
+			?>
+		}
+		
+		if (typeof responsefolders !== 'undefined' && responsefolders.results.length >= 50) {
+			$('a.load-more-folders').removeClass('hide');
+			$('a.load-more-folders').data('offset', 50);
+			$('a.load-more-folders').data('folderid', folderid);
+		} else if (typeof responsedocuments !== 'undefined' && responsedocuments.results.length >= 50) {
+			$('a.load-more-items').removeClass('hide');
+			$('a.load-more-items').data('offset', 50);
+			$('a.load-more-items').data('folderid', folderid);
+		} else {
+			$('a.load-more-items').addClass('hide');
+		}
 		
 		$('#loader').addClass('hide');
 		enableTree();
-    }, 3000);
+	}, 2000);	
 }
 
-function loadItems(folderid, siteid, offset) {
+function loadFolders(folderid, node, offset, siteid) {
 	var rid = '<?php echo $rid; ?>';
-    var responsedocuments, responsefolders;
 
-    $.post('veeam.php', {'action' : 'getsharepointitems', 'folderid' : folderid, 'rid' : rid, 'siteid' : siteid, 'offset' : offset, 'type' : 'folders'}).done(function(data) {
-        responsefolders = JSON.parse(data);
+    $.post('veeam.php', {'action' : 'getsharepointfolders', 'folderid' : folderid, 'offset' : offset, 'rid' : rid, 'siteid' : siteid}).done(function(data) {
+        var response = JSON.parse(data);
+
+        if (response.results.length != 0) {
+			if (node.length === 0) {
+				node = '#';
+			}
+			
+			for (var i = 0; i < response.results.length; i++) {
+				$('#jstree').jstree('create_node', node, {data: {"folderid" : response.results[i].id, "jstree" : {"opened" : true}}, text: response.results[i].name});
+			}
+			
+			fillTableFolders(response, folderid, siteid);
+			
+			if (response.results.length >= 150) {
+				$('a.load-more-folders').removeClass('hide');
+				$('a.load-more-folders').data('offset', offset + 50);
+			} else {
+				$('a.load-more-folders').addClass('hide');
+			}
+		}
     });
+}
 
-    $.post('veeam.php', {'action' : 'getsharepointitems', 'folderid' : folderid, 'rid' : rid, 'siteid' : siteid, 'offset' : offset, 'type' : 'documents'}).done(function(data) {
-        responsedocuments = JSON.parse(data);
+function loadItems(folderid, offset, siteid, type) {
+	var rid = '<?php echo $rid; ?>';
+
+    $.post('veeam.php', {'action' : 'getsharepointitems', 'folderid' : folderid, 'offset' : offset, 'rid' : rid, 'siteid' : siteid, 'type' : type}).done(function(data) {
+        var response = JSON.parse(data);
+		
+		if (typeof response !== 'undefined') {
+			fillTableDocuments(response, siteid, type);
+		}
+
+		if (typeof response !== 'undefined' && response.results.length >= 50) {
+			$('a.load-more-link').removeClass('hide');
+			$('a.load-more-link').data('offset', offset + 50);
+			$('a.load-more-link').data('folderid', folderid);
+		} else {
+			$('a.load-more-link').addClass('hide');
+		}
+	});
+}
+
+function loadContent(offset, org, siteid) {
+	var rid = '<?php echo $rid; ?>';
+	var responselibraries, responselists;
+	
+    $.post('veeam.php', {'action' : 'getsharepointcontent', 'offset' : offset, 'rid' : rid, 'siteid' : siteid, 'type' : 'libraries'}).done(function(data) {
+        responselibraries = JSON.parse(data);
     });
+	
+	$.post('veeam.php', {'action' : 'getsharepointcontent', 'offset' : offset, 'rid' : rid, 'siteid' : siteid, 'type' : 'lists'}).done(function(data) {
+        responselists = JSON.parse(data);
+    });
+	
+	setTimeout(function(e) {	
+		if (typeof responselibraries !== 'undefined' && responselibraries.results.length != 0) {
+			for (var i = 0; i < responselibraries.results.length; i++) {
+				$('#ul-sharepoint-sites').append('<li><a data-type="library" href="sharepoint/' + org + '/' + siteid + '/' + responselibraries.results[i].id + '/library">' + responselibraries.results[i].name + '</a></li>');
+			}
+		}
+		
+		setTimeout(function(e) {
+			if (typeof responselists !== 'undefined' && responselists.results.length != 0) {
+				for (var i = 0; i < responselists.results.length; i++) {
+					$('#ul-sharepoint-sites').append('<li><a data-type="list" href="sharepoint/' + org + '/' + siteid + '/' + responselists.results[i].id + '/list">' + responselists.results[i].name + '</a></li>');
+				}
+			}
+			
+			if (typeof responselibraries !== 'undefined' && responselibraries.results.length >= 50) {
+				$('a.load-more-content').removeClass('hide');
+				$('a.load-more-content').data('offset', offset + 50);
+			} else if (typeof responselists !== 'undefined' && responselists.results.length >= 50) {
+				$('a.load-more-content').removeClass('hide');
+				$('a.load-more-content').data('offset', offset + 50);
+			} else {
+				$('a.load-more-content').addClass('hide');
+			}
+		}, 2000);
+	}, 2000);
+}
 
-    setTimeout(function(e) {
-        if (typeof responsefolders !== 'undefined') {
-            fillTableFolders(responsefolders, folderid, siteid);
-        }
+function loadSites(offset, org) {
+	var rid = '<?php echo $rid; ?>';
+	
+    $.post('veeam.php', {'action' : 'getsharepointsites', 'offset' : offset, 'rid' : rid}).done(function(data) {
+        var response = JSON.parse(data);
 
-        if (typeof responsedocuments !== 'undefined') {
-            fillTableDocuments(responsedocuments, siteid);
-        }
-
-        if ((typeof responsefolders !== 'undefined' && responsefolders.results.length == '30') || (typeof responsedocuments !== 'undefined' && responsedocuments.results.length == '30')) {
-            $('a.load-more-link').removeClass('hide');
-            $('a.load-more-link').data('offset', offset + 30);
-            $('a.load-more-link').data('folderid', folderid);
-        } else {
-            $('a.load-more-link').addClass('hide');
-        }
-    }, 2000);
+        if (response.results.length != 0) {
+			for (var i = 0; i < response.results.length; i++) {
+				if ($('#table-sharepoint-sites').length > 0){
+					$('#table-sharepoint-sites tbody').append('<tr> \
+						<td><a href="sharepoint/' + org + '/' + response.results[i].id + '">' + response.results[i].name + '</a></td> \
+						<td class="text-center"> \
+						<div class="btn-group dropdown"> \
+						<button class="btn btn-default dropdown-toggle" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="true">Options <span class="caret"></span></button> \
+						<ul class="dropdown-menu dropdown-menu-right"> \
+						<li class="dropdown-header">Restore to</li> \
+						<li><a class="dropdown-link" href="javascript:void(0);" onclick="restoreToOriginal(\'documents\', \'' + response.results[i].name + '\', \'' + response.results[i].id + '\', \'full\')"><i class="fa fa-upload"></i> Original location</a></li> \
+						</ul> \
+						</div> \
+						</td> \
+						</tr>');
+				}
+				$('#ul-sharepoint-sites').append('<li><a href="sharepoint/' + org + '/' + response.results[i].id + '">' + response.results[i].name + '</a></li>');
+			}
+			
+			if (response.results.length >= 50) {
+				$('a.load-more-accounts').data('offset', offset + 50);
+			} else {
+				$('a.load-more-accounts').addClass('hide');
+			}
+		}
+    });
 }
 <?php
 }
@@ -1328,7 +1852,7 @@ function loadItems(folderid, siteid, offset) {
 		?>
 		<script>
 		Swal.fire({
-			type: 'info',
+			icon: 'info',
 			title: 'Session expired',
 			text: 'Your session has expired and requires you to log in again.'
 		}).then(function(e) {
