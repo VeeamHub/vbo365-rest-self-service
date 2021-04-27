@@ -53,41 +53,35 @@ if (isset($_POST['logout'])) {
 		}
 	}
 }
-?>
+
+if (file_exists('setup.php')) {
+	?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title><?php echo $title; ?></title>
-    <base href="/" />
-    <link rel="shortcut icon" href="favicon.ico" />
-    <link rel="stylesheet" type="text/css" href="css/bootstrap.min.css" />
-    <link rel="stylesheet" type="text/css" href="css/fontawesome.min.css" />
-    <link rel="stylesheet" type="text/css" href="css/style.css" />
-	<link rel="stylesheet" type="text/css" href="css/sweetalert2.min.css" />	
-    <script src="js/jquery.min.js"></script>
-    <script src="js/bootstrap.min.js"></script>
-	<script src="js/clipboard.min.js"></script>
-    <script src="js/fontawesome.min.js"></script>
-    <script src="js/filesize.min.js"></script>
-	<script src="js/jquery.redirect.js"></script>
-    <script src="js/moment.min.js"></script>
-	<script src="js/sweetalert2.all.min.js"></script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Error</title>
+<base href="/" />
+<link rel="shortcut icon" href="favicon.ico" />
+<link rel="stylesheet" type="text/css" href="css/bootstrap.min.css" />
+<link rel="stylesheet" type="text/css" href="css/fontawesome.min.css" />
+<link rel="stylesheet" type="text/css" href="css/style.css" />
+<link rel="stylesheet" type="text/css" href="css/sweetalert2.min.css" />
+<script src="js/sweetalert2.all.min.js"></script>
 </head>
 <body>
-<?php
-if (file_exists('setup.php')) {
-	?>
-	<script>
-	Swal.fire({
-		icon: 'error',
-		title: 'Error',
-		allowOutsideClick: false,
-		showConfirmButton: false,
-		text: 'Setup file is still available within the installation folder. You must remove this file in order to continue'
-	});
-	</script>
+<script>
+Swal.fire({
+	icon: 'error',
+	title: 'Error',
+	allowOutsideClick: false,
+	showConfirmButton: false,
+	text: 'Setup file is still available within the installation folder. You must remove this file in order to continue'
+});
+</script>
+</body>
+</html>
 	<?php
 	die();
 }
@@ -109,6 +103,28 @@ if (isset($_SESSION['token'])) {
 	
 	if (isset($user) && strtolower($authtype) != 'mfa' && $check === false && strtolower($administrator) == 'yes') {
 	?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title><?php echo $title; ?></title>
+    <base href="/" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="stylesheet" type="text/css" href="css/bootstrap.min.css" />
+    <link rel="stylesheet" type="text/css" href="css/fontawesome.min.css" />
+    <link rel="stylesheet" type="text/css" href="css/style.css" />
+	<link rel="stylesheet" type="text/css" href="css/sweetalert2.min.css" />
+    <script src="js/jquery.min.js"></script>
+    <script src="js/bootstrap.min.js"></script>
+	<script src="js/clipboard.min.js"></script>
+    <script src="js/fontawesome.min.js"></script>
+    <script src="js/filesize.min.js"></script>
+	<script src="js/jquery.redirect.js"></script>
+    <script src="js/moment.min.js"></script>
+	<script src="js/sweetalert2.all.min.js"></script>
+</head>
+<body>
 	<nav class="navbar navbar-inverse navbar-static-top">
 		<div class="container-fluid">
 			<ul class="nav navbar-header">
@@ -452,6 +468,28 @@ if (isset($_SESSION['token'])) {
 } else {
 	unset($_SESSION);
 	?>
+	<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title><?php echo $title; ?></title>
+    <base href="/" />
+    <link rel="shortcut icon" href="favicon.ico" />
+    <link rel="stylesheet" type="text/css" href="css/bootstrap.min.css" />
+    <link rel="stylesheet" type="text/css" href="css/fontawesome.min.css" />
+    <link rel="stylesheet" type="text/css" href="css/style.css" />
+	<link rel="stylesheet" type="text/css" href="css/sweetalert2.min.css" />	
+    <script src="js/jquery.min.js"></script>
+    <script src="js/bootstrap.min.js"></script>
+	<script src="js/clipboard.min.js"></script>
+    <script src="js/fontawesome.min.js"></script>
+    <script src="js/filesize.min.js"></script>
+	<script src="js/jquery.redirect.js"></script>
+    <script src="js/moment.min.js"></script>
+	<script src="js/sweetalert2.all.min.js"></script>
+</head>
+<body>
 	<section class="login-block">
 		<div class="container login-container">
 			<div class="row">
