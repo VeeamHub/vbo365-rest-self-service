@@ -1,0 +1,29 @@
+version: '3.7'
+
+services:
+    apache:
+        build:
+            context: .
+            dockerfile: Dockerfile.dev
+            args:
+                DOCKER_SUBNET: ${DOCKER_SUBNET}
+                DEBUG_PORT: ${DEBUG_PORT}
+        image: vbo365-dev-${DEVUSER}-apache
+        container_name: vbo365-dev-${DEVUSER}-apache
+        restart: 'unless-stopped'
+        networks:
+            vbo365:
+                ipv4_address: ${DOCKER_SUBNET}.2
+        ports:
+            - "1234:80"
+
+        volumes:
+            - ".:/var/www/html"
+# Networks
+networks:
+    vbo365:
+        name: vbo365
+        ipam:
+            driver: default
+            config:
+                - subnet: "${DOCKER_SUBNET}.0/24"
