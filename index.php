@@ -494,15 +494,18 @@ if (isset($_SESSION['token'])) {
 		<div class="container login-container">
 			<div class="row">
 				<div class="col-md-4 login-sec">
-					<h2 class="text-center">Welcome</h2>
+					<div class="login-header">
+						<img class="login-logo" src="./images/wd-logo.png" alt="">
+					</div>
+					<h2 class="text-center">login</h2>
 					<div id="div-forms">
 						<div class="form-group" id="basic-login">
 							<form id="basic_login" method="POST">
 								<input type="hidden" name="authtype" value="basic">
-								<label for="username" class="text-uppercase">Username:</label>
-								<input type="text" class="input-loginform form-control" name="user" autofocus><span class="fa fa-user fa-2x icon"></span><br>
-								<label for="password" class="text-uppercase">Password:</label>
-								<input type="password" class="input-loginform form-control" name="pass"><span class="fa fa-lock fa-2x icon"></span><br>
+								<!-- <label for="username" class="text-uppercase">Username:</label> -->
+								<input type="text" class="input-loginform form-control" name="user" placeholder="Username or E-Mail" autofocus><br>
+								<!-- <label for="password" class="text-uppercase">Password:</label> -->
+								<input type="password" class="input-loginform form-control" name="pass" placeholder="Password"><br>
 								<div class="form-check text-center">
 									<button type="submit" class="btn btn-login">Login</button>
 								</div>
@@ -517,9 +520,9 @@ if (isset($_SESSION['token'])) {
 								<div class="tab-content">
 									<div class="tab-pane active fade in" role="tabpanel" id="step1">
 										<label for="tenant" class="text-uppercase">Tenant ID:</label>
-										<input type="text" class="input-loginform form-control" id="tenantid" name="tenant" placeholder="company.onmicrosoft.com" autofocus><span class="fa fa-user fa-2x icon"></span><br>
+										<input type="text" class="input-loginform form-control" id="tenantid" name="tenant" placeholder="company.onmicrosoft.com" autofocus><br>
 										<label for="application" class="text-uppercase">Application ID:</label>
-										<input type="text" class="input-loginform form-control" id="applicationid" name="application"><span class="fa fa-desktop fa-2x icon"></span>
+										<input type="text" class="input-loginform form-control" id="applicationid" name="application" placeholder="123456">
 										<div class="alert alert-info text-left">You can find this number in the application settings of your Microsoft Azure Active Directory, as described in <a href="https://docs.microsoft.com/en-us/azure/active-directory/develop/howto-create-service-principal-portal" target="_blank">this Microsoft article</a>.</div>
 										<div class="form-check text-center">
 											<button type="button" class="btn btn-next form-check text-center">Next</button>
