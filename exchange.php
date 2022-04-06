@@ -1204,6 +1204,7 @@ function restoreToOriginal(itemid, type) {
 									itemid = node[0].data.folderid;
 								} else {
 									var act = 'restoremailbox';
+									var mailboxid = itemid;
 								}
 								
 								var json = '{ "restoretoOriginallocation": \
